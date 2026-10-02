@@ -94,7 +94,8 @@ export interface Case extends CaseFrame {
 export interface ProviderCase extends CaseFrame {
   provider: { id: string; name: string };
   // The client's personal details, with their own changes, and when this provider first saw them.
-  patient: Client & { since: string };
+  // hasPhoto: a portrait of the patient is available (the face only; the ID document stays with the firm)
+  patient: Client & { since: string; hasPhoto: boolean };
   incident: { date: string; type: string; summary: string };
   injuries: Injury[];
   lien: number;

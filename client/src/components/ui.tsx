@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import type { ReactNode } from "react";
 import type { StatusKind } from "@/data/types";
 import { Icon } from "./Icon";
@@ -40,14 +40,40 @@ export function Rich({ text }: { text: string }) {
 // rather than a broken image.
 // Firm only: only the firm's record carries photoIdDoc, and the document routes
 // (src/app/api/documents/) refuse anyone else.
-export function PhotoIdThumb({ docId, name, size, fallback = null }: { docId: number; name: string; size: "sm" | "lg"; fallback?: ReactNode }) {
+// Whether a photo failed to load, for hiding it. onError alone misses a picture that
+// failed before the page came alive in the browser (it's rendered on the server first),
+// so the ref also checks, once mounted, whether it has already given up.
+function usePhotoFailed() {
   const [failed, setFailed] = useState(false);
+  const ref = useCallback((img: HTMLImageElement | null) => {
+    if (img?.complete && img.naturalWidth === 0) setFailed(true);
+  }, []);
+  return { failed, ref, onError: () => setFailed(true) };
+}
+
+// The patient's portrait for a medical provider: the same face crop, but not a link,
+// and fetched by case rather than by document, so a provider never learns the ID
+// document's id or opens the ID itself (see src/app/api/patient-photo/route.ts).
+export function PatientPhoto({ name, size, fallback = null }: { name: string; size: "sm" | "lg"; fallback?: ReactNode }) {
+  const { failed, ref, onError } = usePhotoFailed();
+  if (failed) return fallback;
+  return (
+    <span className={`idphoto ${size}`}>
+      {/* A plain img, not next/image: the optimizer would keep a cached copy of the photo. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img ref={ref} src="/api/patient-photo" alt={`${name}`} onError={onError} />
+    </span>
+  );
+}
+
+export function PhotoIdThumb({ docId, name, size, fallback = null }: { docId: number; name: string; size: "sm" | "lg"; fallback?: ReactNode }) {
+  const { failed, ref, onError } = usePhotoFailed();
   if (failed) return fallback;
   return (
     <a className={`idphoto ${size}`} href={`/api/documents/${docId}`} target="_blank" rel="noreferrer" title="From the photo ID on file: click to open it">
       {/* A plain img, not next/image: the optimizer would keep a cached copy of an identity document. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/api/documents/${docId}/photo`} alt={`${name}, from the photo ID on file`} onError={() => setFailed(true)} />
+      <img ref={ref} src={`/api/documents/${docId}/photo`} alt={`${name}, from the photo ID on file`} onError={onError} />
     </a>
   );
 }

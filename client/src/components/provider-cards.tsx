@@ -34,6 +34,7 @@ export function CardPatient({ full }: { full?: boolean }) {
   return (
     <div className="card">
       <div className="hd"><h3>Patient</h3>{!full && <Go to="patient">Details</Go>}</div>
+      {/* The patient's photo is in the sidebar; here, just their initials. */}
       <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>{[p.age != null && `Age ${p.age}`, p.dob && `born ${day(p.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
       <div className="kv">
         <ContactLines of={p} full={full} />

@@ -15,7 +15,7 @@ import type { Role } from "@/data/nav";
 import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
-import { PhotoIdThumb } from "./ui";
+import { PatientPhoto, PhotoIdThumb } from "./ui";
 
 export interface ChatMessage { me?: boolean; text: string }
 export interface DemoAccount { id: string; role: Role }
@@ -218,6 +218,11 @@ export function CaseStatusBadge({ closed }: { closed: string | null }) {
     : <span className="tag open"><i aria-hidden="true" />Still open</span>;
 }
 
+// The legal team member marked as the main contact (else the first), or the firm itself.
+function mainContact(team: { name: string; main?: boolean }[], firm: string) {
+  return (team.find((m) => m.main) ?? team[0])?.name ?? firm;
+}
+
 // The few places the shell words things differently per role.
 function frame(d: Dashboard) {
   switch (d.role) {
@@ -227,14 +232,22 @@ function frame(d: Dashboard) {
       client: d.case.photoIdDoc != null
         ? { docId: d.case.photoIdDoc, name: d.case.client.name, age: d.case.client.age }
         : null,
+      // who the sidebar's Message button writes to: the client
+      messageTo: d.case.client.name,
       counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
     };
     case "provider": return {
       box: { label: "Patient", title: d.case.patient.name, sub: d.case.firm },
+      // the patient's portrait above the box (the face only; providers never get the ID itself)
+      patientPhoto: d.case.patient.hasPhoto ? d.case.patient.name : null,
+      // their main contact at the law firm
+      messageTo: mainContact(d.case.team, d.case.firm),
       counts: { records: d.case.requests.length } as Record<string, number>,
     };
     case "client": return {
       box: { label: "Your case", title: d.case.shortTitle, sub: d.case.firm },
+      // their lawyer: the main contact on their legal team
+      messageTo: mainContact(d.case.team, d.case.firm),
       counts: {} as Record<string, number>,
     };
   }
@@ -243,11 +256,12 @@ function frame(d: Dashboard) {
 const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider", client: "Client" };
 
 function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
-  const { dashboard, role, view, openBriefing } = useApp();
+  const { dashboard, role, view, openBriefing, openMessage } = useApp();
   const { user } = dashboard;
   const f = frame(dashboard);
   const { box, counts } = f;
   const client = "client" in f ? f.client : null;
+  const patientPhoto = "patientPhoto" in f ? f.patientPhoto : null;
   return (
     <>
       <div className="logo"><span><Icon name="shield" /></span>CaseBoard</div>
@@ -258,6 +272,8 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
           <div><small>Client</small><b>{client.name}</b>{client.age != null && <span>Age {client.age}</span>}</div>
         </div>
       )}
+      {/* A provider's sidebar shows the patient's portrait the same way; the name is in the box below. */}
+      {patientPhoto && <div className="clientbox"><PatientPhoto name={patientPhoto} size="sm" /></div>}
       <div className="casebox">
         <small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span>
         {box.dates && (
@@ -268,6 +284,10 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
       {role !== "client" && (
         <Link href="/overview" className="brief-btn" onClick={openBriefing}><Icon name="spark" />Today&apos;s briefing</Link>
       )}
+      {/* Message the person this role most needs to reach (see messageTo in frame()), from any page. */}
+      <button className="brief-btn msg" onClick={() => openMessage(f.messageTo)} title={`Message ${f.messageTo}`}>
+        <Icon name="msg" />Message {f.messageTo.split(" ")[0]}
+      </button>
       {NAV[role].map(({ id, label, icon }) => (
         <Link key={id} href={`/${id}`} className={view === id ? "nav on" : "nav"}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}

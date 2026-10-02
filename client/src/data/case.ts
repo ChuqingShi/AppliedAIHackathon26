@@ -53,7 +53,9 @@ export function forProvider(c: Case, providerId: string): ProviderCase {
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     provider: { id: me.id, name: me.name },
-    patient: { name, initials, dob, age, phone, email, address, language, bestTime, occupation, updated, since: file.patientSince },
+    // hasPhoto: whether there's a portrait to show (from /api/patient-photo). Only a
+    // yes/no: the photo ID document itself, and its id, stay with the firm.
+    patient: { name, initials, dob, age, phone, email, address, language, bestTime, occupation, updated, since: file.patientSince, hasPhoto: c.photoIdDoc != null },
     incident: { date: c.incident.date, type: c.incident.type, summary: c.incident.summary },
     injuries: c.injuries,
     lien: me.billed,

@@ -15,6 +15,7 @@ from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 
 import case_view
+import patient_id
 import clio
 import sync as sync_mod
 from db import connect
@@ -100,23 +101,13 @@ def document(doc_id: int):
     return FileResponse(row["path"], filename=name, content_disposition_type="inline")
 
 
-def _document_picture(doc_id: int) -> tuple[bytes, str]:
-    """A synced document as a picture: the first image inside it (a scanned ID is
-    one embedded JPEG), or its first page rendered if it has none. Returns (bytes, ext)."""
-    import pymupdf  # only the picture endpoints need it
+# ---- The patient ID: their identity document and their portrait (patient_id.py) ----
 
-    with connect() as conn:
-        row = conn.execute("SELECT path FROM doc_files WHERE doc_id=?", (doc_id,)).fetchone()
-    if not row or not os.path.isfile(row["path"]):
-        raise HTTPException(404, "That document has not been downloaded. Re-sync without --no-files.")
-    with pymupdf.open(row["path"]) as pdf:
-        if not pdf.page_count:
-            raise HTTPException(404, "That document has no pages")
-        images = pdf[0].get_images(full=True)
-        if images:
-            img = pdf.extract_image(images[0][0])
-            return img["image"], img["ext"]
-        return pdf[0].get_pixmap(dpi=110).tobytes("png"), "png"
+def _document_picture(doc_id: int) -> tuple[bytes, str]:
+    try:
+        return patient_id.picture(patient_id.document_path(doc_id))
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 def _picture_response(data: bytes, ext: str) -> Response:
@@ -125,31 +116,14 @@ def _picture_response(data: bytes, ext: str) -> Response:
                     headers={"Cache-Control": "private, no-store"})
 
 
-def _portrait(data: bytes) -> bytes | None:
-    """The portrait on an ID card: finds the largest face (OpenCV's built-in face
-    detector) and crops a passport-style 3:4 head-and-shoulders frame around it.
-    None when no face is found, so the caller can fall back to the whole picture."""
-    import cv2  # opencv-python-headless < 5: version 5 dropped the built-in face models
-    import numpy as np
-
-    img = cv2.imdecode(np.frombuffer(data, np.uint8), cv2.IMREAD_COLOR)
-    if img is None:
-        return None
-    h, w = img.shape[:2]
-    gray = cv2.equalizeHist(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY))
-    detector = cv2.CascadeClassifier(cv2.data.haarcascades + "haarcascade_frontalface_default.xml")
-    faces = detector.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-    if not len(faces):
-        return None
-    fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
-    # Frame: 1.4x the face's width (a close head-and-shoulders crop), 4:3 tall, with the face a little above centre
-    # (room for the shoulders), moved back inside the picture if it runs off an edge.
-    cw = min(int(fw * 1.4), w)
-    ch = min(int(cw * 4 / 3), h)
-    x0 = min(max(int(fx + fw / 2 - cw / 2), 0), w - cw)
-    y0 = min(max(int(fy + fh * 0.45 - ch * 0.42), 0), h - ch)
-    ok, out = cv2.imencode(".jpg", img[y0:y0 + ch, x0:x0 + cw], [cv2.IMWRITE_JPEG_QUALITY, 92])
-    return out.tobytes() if ok else None
+@app.get("/case/patient-id")
+def case_patient_id(matter_id: int | None = None):
+    """Which document is the patient's photo ID and why, and whether a face was found
+    on it (with where). Firm only: it names the ID document."""
+    try:
+        return patient_id.summary(matter_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 @app.get("/documents/{doc_id}/image")
@@ -159,12 +133,17 @@ def document_image(doc_id: int):
 
 
 @app.get("/documents/{doc_id}/photo")
-def document_photo(doc_id: int):
+def document_photo(doc_id: int, face_only: bool = False):
     """Just the portrait from an ID document (the small photo frame on the card),
-    or the whole picture if no face can be found in it."""
+    or the whole picture if no face can be found in it. With face_only, no face
+    means 404 instead: medical providers get the face and never the whole ID."""
     data, ext = _document_picture(doc_id)
-    face = _portrait(data)
-    return _picture_response(face, "jpeg") if face else _picture_response(data, ext)
+    face = patient_id.portrait(data)
+    if face:
+        return _picture_response(face, "jpeg")
+    if face_only:
+        raise HTTPException(404, "No face found in that document")
+    return _picture_response(data, ext)
 
 
 # ---- Facts read out of the documents (built by `python -m digest`; firm only) ----
