@@ -300,6 +300,8 @@ def build_case(matter_id: int | None = None) -> dict:
         "id": m.get("display_number") or str(m["id"]),
         "matterId": m["id"],
         "title": f"{last} v. {defendant}" if defendant else desc,
+        # for the sidebar: "Sapini v. Metro-North" (the defendant's first word)
+        "shortTitle": f"{last} v. {defendant.split()[0]}" if defendant else desc,
         "firm": FIRM_NAME,
         "stages": stages, "stageIndex": idx,
         "client": client, "incident": incident, "injuries": injuries,

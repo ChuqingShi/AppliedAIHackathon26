@@ -3,10 +3,9 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "CaseBoard",
-  description: "A live case dashboard for the law firm and its medical providers.",
+  description: "A live case dashboard for the law firm, its medical providers and the client.",
 };
 
-// The app shell lives in app/[role]/layout.tsx, next to the case data it shows.
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en">

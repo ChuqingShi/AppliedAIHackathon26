@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import type { ReactNode } from "react";
-import type { StatusKind } from "@/data/case";
+import type { StatusKind } from "@/data/types";
 import { useApp } from "./AppShell";
 import { Icon } from "./Icon";
 
-export { money, moneyK } from "./format";
+export { billsTotal, money, moneyK } from "./format";
 
 export function Status({ kind, label }: { kind: StatusKind; label: string }) {
   return (
@@ -21,8 +21,13 @@ export function FirmOnly() {
   return <span className="tag firm"><Icon name="lock" sm />Firm only</span>;
 }
 
-// Link to another view of the current role. Also leaves search, like the nav does.
+// Link to another view of the dashboard. Also leaves search, like the nav does.
 export function Go({ to, className = "link", children }: { to: string; className?: string; children: ReactNode }) {
-  const { role, setQuery } = useApp();
-  return <Link href={`/${role}/${to}`} className={className} onClick={() => setQuery("")}>{children}</Link>;
+  const { setQuery } = useApp();
+  return <Link href={`/${to}`} className={className} onClick={() => setQuery("")}>{children}</Link>;
+}
+
+// Text with **bold** marks, as the assistant writes it.
+export function Rich({ text }: { text: string }) {
+  return text.split("**").map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
 }

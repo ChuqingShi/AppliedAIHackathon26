@@ -1,27 +1,34 @@
 "use client";
 
-// CaseBoard: one dashboard, two roles. The shell owns everything that outlives
-// a single view: search, the assistant's chat log, the message dialog and toasts.
+// CaseBoard: one dashboard, three roles. What it shows comes from `dashboard`,
+// the record the server built for whoever is signed in. The shell owns
+// everything that outlives a single view: search, the assistant's chat log,
+// the message dialog, toasts and what the user has put on their overview.
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { NAV, isRole } from "@/data/nav";
+import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
+import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import { answer, briefing } from "./assistant";
-import { useCaseData } from "./CaseData";
+import type { Case, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchResults } from "./SearchResults";
 
-export interface ChatMessage { me?: boolean; body: ReactNode }
+export interface ChatMessage { me?: boolean; text: string }
+export interface DemoAccount { id: string; role: Role }
 
 interface App {
+  dashboard: Dashboard;
+  overview: OverviewLayout;
+  setOverview: (layout: OverviewLayout) => void;
   role: Role;
   view: string;
   query: string;
   setQuery: (q: string) => void;
   chat: ChatMessage[];
+  thinking: boolean;
   ask: (question: string) => void;
   toast: (text: string) => void;
   openMessage: (name: string) => void;
@@ -35,10 +42,23 @@ export function useApp() {
   return app;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const params = useParams<{ role?: string; view?: string }>();
+// The signed-in role's record. Each role's cards only ever render for that role.
+export function useFirmCase(): Case {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "firm") throw new Error("This card is for the law firm only");
+  return dashboard.case;
+}
+
+export function useProviderCase(): ProviderCase {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "provider") throw new Error("This card is for medical providers only");
+  return dashboard.case;
+}
+
+export function AppShell({ dashboard, overview: savedOverview, demoAccounts, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; children: ReactNode }) {
+  const params = useParams<{ view?: string }>();
   const pathname = usePathname();
-  const role: Role = isRole(params.role) ? params.role : "firm";
+  const role = dashboard.role;
   const view = params.view ?? "overview";
 
   // The search belongs to the page it was typed on, so back/forward clears it.
@@ -46,15 +66,22 @@ export function AppShell({ children }: { children: ReactNode }) {
   const query = search.path === pathname ? search.text : "";
   const setQuery = useCallback((text: string) => setSearch({ text, path: pathname }), [pathname]);
 
-  // The assistant is firm-only; it answers from the loaded case record.
-  const data = useCaseData();
-  const firmCase = data.role === "firm" ? data.case : null;
-  const [chat, setChat] = useState<ChatMessage[]>(() => (firmCase ? [{ body: briefing(firmCase) }] : []));
-  const ask = useCallback((question: string) => {
+  const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
+  const [asking, setAsking] = useState(0);
+  const ask = useCallback(async (question: string) => {
     const q = question.trim();
-    if (!q || !firmCase) return;
-    setChat((log) => [...log, { me: true, body: q }, { body: answer(firmCase, q) }]);
-  }, [firmCase]);
+    if (!q) return;
+    setChat((log) => [...log, { me: true, text: q }]);
+    setAsking((n) => n + 1);
+    try {
+      const reply = await askAssistant(q);
+      setChat((log) => [...log, { text: reply }]);
+    } catch {
+      setChat((log) => [...log, { text: "The assistant couldn't be reached. Try again in a moment." }]);
+    } finally {
+      setAsking((n) => n - 1);
+    }
+  }, []);
 
   const [toastState, setToastState] = useState({ text: "", show: false });
   const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -63,6 +90,19 @@ export function AppShell({ children }: { children: ReactNode }) {
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastState((t) => ({ ...t, show: false })), 2600);
   }, []);
+
+  // A change to the overview shows at once; the save follows and the server sends back what it kept.
+  const [overview, showOverview] = useOptimistic(savedOverview);
+  const setOverview = useCallback((layout: OverviewLayout) => {
+    startTransition(async () => {
+      showOverview(layout);
+      try {
+        await saveOverviewLayout(layout);
+      } catch {
+        toast("Couldn’t save your overview. Try again in a moment.");
+      }
+    });
+  }, [showOverview, toast]);
 
   const [messageTo, setMessageTo] = useState<string | null>(null);
   useEffect(() => {
@@ -82,14 +122,14 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ role, view, query, setQuery, chat, ask, toast, openMessage: setMessageTo }),
-    [role, view, query, setQuery, chat, ask, toast],
+    () => ({ dashboard, overview, setOverview, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
+    [dashboard, overview, setOverview, role, view, query, setQuery, chat, asking, ask, toast],
   );
 
   return (
     <AppContext.Provider value={app}>
       <div className="app">
-        <aside className="side"><Sidebar /></aside>
+        <aside className="side"><Sidebar demoAccounts={demoAccounts} /></aside>
         <main className="main" ref={main}>
           <StickyHeader />
           <div className="content">{query.trim() ? <SearchResults /> : children}</div>
@@ -112,14 +152,36 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Sidebar() {
-  const { role, view, query, setQuery } = useApp();
-  const data = useCaseData();
-  const firm = role === "firm";
-  const user = data.case.user;
-  const counts: Record<string, number> = data.role === "firm"
-    ? { todo: data.case.tasks.filter((t) => t.urgent).length }
-    : { records: data.case.requests.length };
+// The few places the shell words things differently per role.
+function frame(d: Dashboard) {
+  switch (d.role) {
+    case "firm": return {
+      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id },
+      heading: d.case.title,
+      meta: `Case ${d.case.id} · Client ${d.case.client.name}`,
+      counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
+    };
+    case "provider": return {
+      box: { label: "Patient", title: d.case.patient.name, sub: d.case.firm },
+      heading: `${d.case.patient.name} — injury case`,
+      meta: `${d.case.firm} · Case ${d.case.id}`,
+      counts: { records: d.case.requests.length } as Record<string, number>,
+    };
+    case "client": return {
+      box: { label: "Your case", title: d.case.shortTitle, sub: d.case.firm },
+      heading: d.case.title,
+      meta: `${d.case.firm} · Case ${d.case.id}`,
+      counts: {} as Record<string, number>,
+    };
+  }
+}
+
+const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider", client: "Client" };
+
+function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
+  const { dashboard, role, view, query, setQuery } = useApp();
+  const { user } = dashboard;
+  const { box, counts } = frame(dashboard);
   const searching = query.trim() !== "";
   return (
     <>
@@ -128,38 +190,41 @@ function Sidebar() {
         <Icon name="search" />
         <input type="search" placeholder="Search this case" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
       </label>
-      <div className="casebox">
-        {data.role === "firm"
-          ? <><small>Case</small><b>{data.case.title}</b><span>{data.case.id}</span></>
-          : <><small>Patient</small><b>{data.case.patient.name}</b><span>{data.case.firm}</span></>}
-      </div>
+      <div className="casebox"><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
       {NAV[role].map(({ id, label, icon }) => (
-        <Link key={id} href={`/${role}/${id}`} className={view === id && !searching ? "nav on" : "nav"} onClick={() => setQuery("")}>
+        <Link key={id} href={`/${id}`} className={view === id && !searching ? "nav on" : "nav"} onClick={() => setQuery("")}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}
         </Link>
       ))}
       <div className="foot">
-        <div className="demo">
+        {/* Demo shortcut: signs in as the sample account for each role. */}
+        <form className="demo" action={login}>
           <small>Demo · signed in as</small>
           <div className="seg">
-            <Link href="/firm/overview" className={firm ? "on" : ""}>Law firm</Link>
-            <Link href="/provider/overview" className={firm ? "" : "on"}>Medical provider</Link>
+            {demoAccounts.map((a) => (
+              <button key={a.id} name="account" value={a.id} className={a.role === role ? "on" : ""} aria-pressed={a.role === role}>{SHORT_ROLE[a.role]}</button>
+            ))}
           </div>
+        </form>
+        <div className="who">
+          <span className="av">{user.initials}</span>
+          <div>{user.name}<small>{user.title}</small></div>
+          <form action={logout}><button className="out" aria-label="Sign out" title="Sign out"><Icon name="logout" /></button></form>
         </div>
-        <div className="who"><span className="av">{user.initials}</span><div>{user.name}<small>{user.role}</small></div></div>
       </div>
     </>
   );
 }
 
 function StickyHeader() {
-  const data = useCaseData();
-  const { stages, stageIndex: s } = data.case;
+  const { dashboard } = useApp();
+  const { heading, meta } = frame(dashboard);
+  const { stages, stageIndex: s } = dashboard.case;
   return (
     <div className="stick">
       <div className="sh">
-        <h1>{data.role === "firm" ? data.case.title : `${data.case.patient.name} — injury case`}</h1>
-        <span className="meta">{data.role === "firm" ? `Case ${data.case.id} · Client ${data.case.client.name}` : `${data.case.firm} · Case ${data.case.id}`}</span>
+        <h1>{heading}</h1>
+        <span className="meta">{meta}</span>
         <span className="chip">Stage {s + 1} of {stages.length} · {stages[s].name}</span>
       </div>
       <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${stages.length}, ${stages[s].name}`}>

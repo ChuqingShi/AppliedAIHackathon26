@@ -23,3 +23,13 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 ## How it stays incremental
 Every record is stored raw with a SHA-256 hash. Unchanged records are skipped, `changed_at` moves only when the content actually changed, and documents are only re-downloaded when their metadata changes. Later digestion steps only process changed rows.
+
+## Dashboard endpoints
+The CaseBoard client (`../client`) reads everything from these; nothing on the dashboard is hardcoded.
+
+- `GET /case?matter_id=`: the digested case record the law firm sees (defaults to the latest synced matter). Built by `case_view.py` from SQLite; fields Clio doesn't hold come back as `null` and the cards hide them.
+- `GET /case/provider?matter_id=&provider_id=`: the trimmed record one medical provider may see.
+- `GET /documents/{doc_id}`: a synced document file.
+- `GET /cases`: matters synced so far.
+
+Optional: set `FIRM_NAME` in `.env` to name the firm on the dashboard (Clio's matter data doesn't include it).
