@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { sendInquiry } from "@/app/actions";
-import type { Dashboard, Draft, Passage } from "@/data/types";
+import type { ChatMessage, Dashboard, Draft, Passage } from "@/data/types";
 import { useApp, useFirmCase } from "./AppShell";
-import { recipients } from "./format";
+import { day, recipients } from "./format";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { FirmOnly, Rich, money } from "./ui";
@@ -75,12 +75,15 @@ function hints(d: Dashboard): string[] {
 // firm can change who it goes to and what it says before sending; once sent, it
 // is tracked under "Questions sent".
 function AskSomeone({ asked, draft, missing, onLeave }: { asked: string; draft: Draft; missing: boolean; onLeave: () => void }) {
+  const { dashboard } = useApp();
   const to = recipients(useFirmCase());
   const [open, setOpen] = useState(missing);
   const [who, setWho] = useState(draft.to);
   const [message, setMessage] = useState(draft.message);
-  const [state, setState] = useState<"draft" | "sending" | "sent" | "failed">("draft");
-  const name = to.find((r) => r.id === who)?.name;
+  // Already sent from this answer (in this sitting, or before a reload): one of the questions out has it.
+  const before = dashboard.inquiries.find((q) => q.asked === asked);
+  const [state, setState] = useState<"draft" | "sending" | "sent" | "failed">(before ? "sent" : "draft");
+  const name = state === "sent" && before ? before.to.name : to.find((r) => r.id === who)?.name;
 
   async function send(e: FormEvent) {
     e.preventDefault();
@@ -114,23 +117,58 @@ function AskSomeone({ asked, draft, missing, onLeave }: { asked: string; draft: 
   );
 }
 
+// One past exchange with the assistant, as the history lists it: the question and
+// when, opening to the answer and an "Ask again".
+function HistoryItem({ asked, reply, onAsk }: { asked: ChatMessage; reply?: ChatMessage; onAsk: (q: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className={open ? "hist open" : "hist"}>
+      <button type="button" className="hist-q" onClick={() => setOpen(!open)} aria-expanded={open}>
+        <Icon name="msg" sm /><span>{asked.text}</span>{asked.at && <small>{day(asked.at.slice(0, 10), false)}</small>}
+      </button>
+      {open && (
+        <div className="hist-a">
+          {reply ? <Rich text={reply.text} /> : <span className="muted">No answer was kept.</span>}
+          {reply?.sources?.length ? (
+            <div className="srcs">
+              {reply.sources.map((p, n) => <a key={n} href={pageLink(p)} target="_blank" rel="noreferrer"><b>{n + 1}</b>{p.name}, p. {p.page}</a>)}
+            </div>
+          ) : null}
+          <button type="button" className="asklink" onClick={() => onAsk(asked.text)}><Icon name="redo" sm />Ask again</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // The one box in the top bar, for searching the case and (for the firm) asking
 // the assistant. Two dropdowns open under it while there is something typed:
 // matches in the case on the left, the assistant on the right. For the firm the
 // matches include the pages of the case's documents that say what was typed,
 // and the assistant answers from everything held on the case. When the case
-// doesn't hold the answer, it offers a message to whoever would know. They close
-// on Escape or a click elsewhere.
+// doesn't hold the answer, it offers a message to whoever would know. The clock
+// button opens the history instead: everything asked before, which the box then
+// searches. They close on Escape or a click elsewhere.
 export function SearchBar() {
-  const { dashboard, chat, thinking, ask } = useApp();
+  const { dashboard, chat, thinking, ask, clearChat } = useApp();
   const canAsk = dashboard.role === "firm";
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState(false);
+  // Clearing the history takes a second click, so a slip doesn't lose it.
+  const [sure, setSure] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   const log = useRef<HTMLDivElement>(null);
 
   const q = query.trim();
-  const showing = open && q !== "";
+  const showing = open && (q !== "" || history);
+  // Past exchanges, newest first, each question with the answer that followed it; narrowed by what is typed.
+  const past = useMemo(() => {
+    const items: { asked: ChatMessage; reply?: ChatMessage }[] = [];
+    chat.forEach((m, i) => { const next = chat[i + 1]; if (m.me) items.push({ asked: m, reply: next && !next.me ? next : undefined }); });
+    const needle = q.toLowerCase();
+    return items.reverse().filter(({ asked, reply }) => !needle || `${asked.text} ${reply?.text ?? ""}`.toLowerCase().includes(needle));
+  }, [chat, q]);
   const index = useMemo(() => searchIndex(dashboard), [dashboard]);
   const hits = index.filter((x) => (x.label + " " + x.sub).toLowerCase().includes(q.toLowerCase()));
   const lastAsked = chat.findLast((m) => m.me)?.text;
@@ -168,8 +206,8 @@ export function SearchBar() {
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) setOpen(false); };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onDown = (e: MouseEvent) => { if (!box.current?.contains(e.target as Node)) { setOpen(false); setHistory(false); } };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") { setOpen(false); setHistory(false); } };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
     return () => {
@@ -180,6 +218,7 @@ export function SearchBar() {
 
   function submit(e: FormEvent) {
     e.preventDefault();
+    if (history) return;
     if (canAsk && q) ask(q);
     setOpen(true);
   }
@@ -188,6 +227,15 @@ export function SearchBar() {
   function leave() {
     setQuery("");
     setOpen(false);
+    setHistory(false);
+  }
+
+  // From the history, a question is asked afresh in the ordinary view.
+  function askAgain(question: string) {
+    setHistory(false);
+    setQuery(question);
+    setOpen(true);
+    ask(question);
   }
 
   return (
@@ -200,14 +248,37 @@ export function SearchBar() {
             onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
             onClick={() => setOpen(true)}
-            aria-label={canAsk ? "Search or ask about this case" : "Search this case"}
+            aria-label={history ? "Search your history" : canAsk ? "Search or ask about this case" : "Search this case"}
             autoComplete="off"
           />
-          {!query && <span className="ph" key={tip} aria-hidden="true">{tips[tip % tips.length]}</span>}
+          {!query && <span className="ph" key={history ? "history" : tip} aria-hidden="true">{history ? "Search what you asked before" : tips[tip % tips.length]}</span>}
         </div>
+        {canAsk && (
+          <button type="button" className={history ? "hist-btn on" : "hist-btn"} aria-pressed={history} aria-label="Search history" title="Search history"
+            onClick={() => { setHistory(!history); setOpen(true); }}><Icon name="clock" /></button>
+        )}
         {canAsk && <button aria-label="Ask the assistant" title="Ask the assistant"><Icon name="spark" /></button>}
       </form>
-      {showing && (
+      {showing && history && (
+        <div className="drops">
+          <div className="drop">
+            <div className="hd">
+              <h3>Your history</h3>
+              <span className="muted">
+                {past.length} {past.length === 1 ? "question" : "questions"}
+                {past.length > 0 && !q && (sure
+                  ? <> · Forget all of it? <button type="button" className="link" onClick={() => { setSure(false); clearChat(); }}>Yes, clear</button> · <button type="button" className="link" onClick={() => setSure(false)}>Keep</button></>
+                  : <> · <button type="button" className="link" onClick={() => setSure(true)}>Clear</button></>)}
+              </span>
+            </div>
+            <div className="hits">
+              {past.map((item, i) => <HistoryItem key={`${item.asked.at ?? i}-${i}`} asked={item.asked} reply={item.reply} onAsk={askAgain} />)}
+              {!past.length && <div className="empty">{q ? "Nothing you asked before matches that." : "Nothing asked yet. What you ask the assistant is kept here, so you can come back to it."}</div>}
+            </div>
+          </div>
+        </div>
+      )}
+      {showing && !history && (
         <div className="drops">
           <div className="drop">
             <div className="hd"><h3>In this case</h3><span className="muted">{matches} {matches === 1 ? "match" : "matches"}</span></div>
@@ -232,6 +303,8 @@ export function SearchBar() {
               <div className="log" ref={log} aria-live="polite">
                 {chat.map((m, i) => (
                   <div key={i} className={m.me ? "bubble me" : "bubble"}>
+                    {/* a new day in the conversation */}
+                    {m.me && m.at && day(m.at.slice(0, 10)) !== day(chat.slice(0, i).findLast((x) => x.me && x.at)?.at?.slice(0, 10) ?? "") && <small className="when">{day(m.at.slice(0, 10))}</small>}
                     <Rich text={m.text} />
                     {m.sources?.length ? (
                       <div className="srcs">

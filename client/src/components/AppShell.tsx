@@ -9,19 +9,16 @@ import Link from "next/link";
 import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { askAssistant, currentAccount, dismissBriefing, login, logout, saveOverviewLayout, sendInquiry } from "@/app/actions";
+import { askAssistant, currentAccount, dismissBriefing, forgetHistory, login, logout, saveOverviewLayout, sendInquiry } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase, Reply } from "@/data/types";
+import type { Case, ChatMessage, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { newAnswers, recipients, unanswered } from "./format";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
 import { PatientPhoto, PhotoIdThumb } from "./ui";
 
-// What the firm asked (`me`), or the assistant's reply: its text, the document
-// pages it was taken from, the question it answers (`asked`) and, when someone
-// outside the firm would know better, the message that asks them.
-export interface ChatMessage extends Partial<Reply> { me?: boolean; text: string; asked?: string }
+export type { ChatMessage };
 // How often an open dashboard asks the server what has changed, so a question's
 // progress and a new answer show without reloading.
 const REFRESH_MS = 15_000;
@@ -36,6 +33,8 @@ interface App {
   chat: ChatMessage[];
   thinking: boolean;
   ask: (question: string) => void;
+  // Forgets the conversation so far, on screen and on the server.
+  clearChat: () => void;
   toast: (text: string) => void;
   openMessage: (name: string) => void;
   // The sign-in briefing for the firm and providers (components/Briefing.tsx): open after sign-in until
@@ -102,16 +101,17 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
   const role = dashboard.role;
   const view = params.view ?? "overview";
 
-  const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
+  // The firm's past conversation with the assistant, then today's briefing.
+  const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [...dashboard.history, { text: dashboard.briefing }] : []);
   const [asking, setAsking] = useState(0);
   const ask = useCallback(async (question: string) => {
     const q = question.trim();
     if (!q) return;
-    setChat((log) => [...log, { me: true, text: q }]);
+    setChat((log) => [...log, { me: true, text: q, at: new Date().toISOString() }]);
     setAsking((n) => n + 1);
     try {
       const reply = await askAssistant(q);
-      setChat((log) => [...log, { ...reply, asked: q }]);
+      setChat((log) => [...log, reply]);
     } catch {
       setChat((log) => [...log, { text: "The assistant couldn't be reached. Try again in a moment." }]);
     } finally {
@@ -126,6 +126,15 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastState((t) => ({ ...t, show: false })), 2600);
   }, []);
+
+  const clearChat = useCallback(async () => {
+    setChat(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
+    try {
+      await forgetHistory();
+    } catch {
+      toast("Couldn’t clear the history on the server. It may come back on reload.");
+    }
+  }, [dashboard, toast]);
 
   // A change to the overview shows at once; the save follows and the server sends back what it kept.
   const [overview, showOverview] = useOptimistic(savedOverview);
@@ -192,8 +201,8 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
   }, [router]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, openBriefing, closeBriefing }),
-    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast, briefingOpen, openBriefing, closeBriefing],
+    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, clearChat, toast, openMessage: setMessageTo, briefingOpen, openBriefing, closeBriefing }),
+    [dashboard, overview, setOverview, role, view, chat, asking, ask, clearChat, toast, briefingOpen, openBriefing, closeBriefing],
   );
 
   return (

@@ -26,6 +26,10 @@ export interface Draft { to: string; message: string }
 // `draft` is a message asking for the answer from whoever would have it; with
 // `missing`, the case doesn't hold the answer, so sending that message is the next step.
 export interface Reply { text: string; sources: Passage[]; draft?: Draft; missing?: boolean }
+// One message in the firm's conversation with the assistant: what the firm asked
+// (`me`), or the assistant's reply with the question it answers (`asked`). Saved
+// ones have `at`, when they were said.
+export interface ChatMessage extends Partial<Reply> { me?: boolean; text: string; asked?: string; at?: string }
 // A question the firm sent to a medical provider or the client, and how far it has
 // got: sent, seen by them, answered, closed by the firm. Times are ISO timestamps.
 // `asked` is what the firm typed in the search box that led to it; only the firm gets it.
@@ -156,10 +160,6 @@ export type TileSize = "s" | "m" | "l";
 // the tiles they locked in place (`locked`; Auto-arrange leaves those alone).
 export interface OverviewLayout { removed: string[]; added: string[]; rows: string[][]; sizes: Record<string, TileSize>; locked: string[] }
 
-// One dashboard, three roles: the signed-in user's role decides which record
-// the server builds, and so what the browser receives. `inquiries` are the
-// questions the firm has sent: all of them for the firm, and for a provider or
-// the client the ones sent to them.
 // A file a medical provider uploaded for the firm from their dashboard. Times are ISO
 // timestamps; `openedAt` is when the firm first opened it (null: not yet).
 export interface Upload {
@@ -174,8 +174,13 @@ export interface Upload {
   openedAt: string | null;
 }
 
-// `uploads`: the firm gets every file providers sent on the case; a provider only their own.
+// One dashboard, three roles: the signed-in user's role decides which record
+// the server builds, and so what the browser receives. `inquiries` are the
+// questions the firm has sent: all of them for the firm, and for a provider or
+// the client the ones sent to them. `history` is the firm user's past conversation
+// with the assistant. `uploads`: the firm gets every file providers sent on the
+// case; a provider only their own.
 export type Dashboard =
-  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[]; uploads: Upload[] }
+  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[]; history: ChatMessage[]; uploads: Upload[] }
   | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[]; uploads: Upload[] }
   | { role: "client"; user: User; case: ClientCase; inquiries: Inquiry[] };

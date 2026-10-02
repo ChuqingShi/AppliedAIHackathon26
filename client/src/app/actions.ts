@@ -7,9 +7,10 @@ import { findAccount } from "@/data/accounts";
 import { reply } from "@/lib/assistant";
 import { clearBriefing, queueBriefing } from "@/lib/briefing";
 import { getDashboard } from "@/lib/dashboard";
+import { addHistory, clearHistory } from "@/lib/history";
 import { addInquiry, changeInquiry } from "@/lib/inquiries";
 import { DETAILS } from "@/data/details";
-import type { DetailErrors, OverviewLayout } from "@/data/types";
+import type { ChatMessage, DetailErrors, OverviewLayout } from "@/data/types";
 import { setOverviewLayout } from "@/lib/preferences";
 import { checkDetails, setClientEdits } from "@/lib/profile";
 import { createSession, deleteSession, getSession, requireSession } from "@/lib/session";
@@ -40,11 +41,23 @@ export async function currentAccount() {
   return (await getSession())?.id ?? null;
 }
 
-export async function askAssistant(question: string) {
+export async function askAssistant(question: string): Promise<ChatMessage> {
   const dashboard = await getDashboard();
   // The assistant answers from the full case record, so it is for the firm only.
   if (dashboard.role !== "firm") throw new Error("Forbidden");
-  return reply(dashboard, String(question).slice(0, 2000));
+  const q = String(question).slice(0, 2000);
+  const answer: ChatMessage = { ...(await reply(dashboard, q)), asked: q, at: new Date().toISOString() };
+  // Kept, so the firm can go back over what they asked. Not keeping it doesn't lose the answer.
+  await addHistory(dashboard.user.id, dashboard.case.id, [{ me: true, text: q, at: answer.at }, answer]).catch((e) => console.warn(`History: ${e}`));
+  return answer;
+}
+
+// Forgets the signed-in user's conversation with the assistant on this case.
+export async function forgetHistory() {
+  const dashboard = await getDashboard();
+  if (dashboard.role !== "firm") throw new Error("Forbidden");
+  await clearHistory(dashboard.user.id, dashboard.case.id);
+  refresh();
 }
 
 // Sends a question from the firm to the client or to a medical provider on the

@@ -69,6 +69,16 @@ CREATE TABLE IF NOT EXISTS client_details (
     updated_at TEXT NOT NULL
 );
 
+-- What each dashboard user asked the assistant and what it answered, so they can go
+-- back over it. One row per message, as the dashboard sent it.
+CREATE TABLE IF NOT EXISTS chat_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id TEXT NOT NULL,          -- the dashboard account
+    case_id TEXT NOT NULL,
+    data TEXT NOT NULL,             -- JSON: the message as the dashboard shows it
+    at TEXT NOT NULL
+);
+
 -- Questions the firm sends to a medical provider or the client when the case doesn't
 -- hold the answer, and how far each has got: sent, seen, answered, closed by the firm.
 CREATE TABLE IF NOT EXISTS inquiries (

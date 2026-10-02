@@ -8,6 +8,7 @@ import { forClient, forProvider, loadCase } from "@/data/case";
 import type { Dashboard } from "@/data/types";
 import { CLIENT } from "@/data/nav";
 import { briefing } from "./assistant";
+import { getHistory } from "./history";
 import { getInquiries } from "./inquiries";
 import { getUploads } from "./uploads";
 import { getClientEdits, withClientEdits } from "./profile";
@@ -26,7 +27,7 @@ export const getDashboard = cache(async (): Promise<Dashboard> => {
   // Files providers uploaded for the firm: the firm gets them all, a provider only their own.
   const uploads = account.role === "client" ? [] : await getUploads(c.id);
   switch (account.role) {
-    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries, uploads };
+    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries, history: await getHistory(account.id, c.id), uploads };
     case "provider": return { role: "provider", user, case: forProvider(c, account.providerId), inquiries: sentTo(account.providerId),
       uploads: uploads.filter((u) => u.provider.id === account.providerId) };
     // The client goes by the name on their record, which they can change.

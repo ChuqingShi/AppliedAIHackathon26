@@ -397,3 +397,40 @@ def upload_file_content(upload_id: int, opened_by_firm: bool = False):
             conn.execute("UPDATE uploads SET opened_at=? WHERE id=? AND opened_at IS NULL", (_now(), upload_id))
     return FileResponse(row["path"], media_type=row["content_type"], filename=row["file_name"],
                         content_disposition_type="inline", headers={"Cache-Control": "private, no-store"})
+
+
+# ---- What each user asked the assistant, and what it answered (SQLite only, never Clio) ----
+
+MAX_HISTORY_ROWS = 500   # kept per user and case; older messages are dropped
+MAX_MESSAGE_BYTES = 50_000
+
+
+@app.get("/users/{user_id}/chat")
+def chat_history(user_id: str, case_id: str):
+    """This user's conversation with the assistant on this case, oldest first."""
+    with connect() as conn:
+        rows = conn.execute("SELECT id, data, at FROM chat_history WHERE user_id=? AND case_id=? ORDER BY id", (user_id, case_id)).fetchall()
+    return [{**json.loads(r["data"]), "id": r["id"], "at": r["at"]} for r in rows]
+
+
+@app.post("/users/{user_id}/chat")
+def add_chat_history(user_id: str, case_id: str, messages: list[dict] = Body(...)):
+    """Appends messages (a question and its answer). The dashboard decides what a message is; this only stores it."""
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [(user_id, case_id, json.dumps(m), now) for m in messages]
+    if any(len(data) > MAX_MESSAGE_BYTES for *_, data, _ in rows):
+        raise HTTPException(413, "That message is too large to keep")
+    with connect() as conn:
+        conn.executemany("INSERT INTO chat_history(user_id, case_id, data, at) VALUES (?,?,?,?)", rows)
+        conn.execute("""DELETE FROM chat_history WHERE user_id=? AND case_id=? AND id NOT IN
+                        (SELECT id FROM chat_history WHERE user_id=? AND case_id=? ORDER BY id DESC LIMIT ?)""",
+                     (user_id, case_id, user_id, case_id, MAX_HISTORY_ROWS))
+    return {"added": len(rows)}
+
+
+@app.delete("/users/{user_id}/chat")
+def clear_chat_history(user_id: str, case_id: str):
+    """Forgets this user's conversation on this case."""
+    with connect() as conn:
+        conn.execute("DELETE FROM chat_history WHERE user_id=? AND case_id=?", (user_id, case_id))
+    return {"cleared": True}
