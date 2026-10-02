@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import type { StatusKind } from "@/data/types";
 import { Icon } from "./Icon";
 
-export { billsTotal, money, moneyK } from "./format";
+export { billsTotal, day, money, moneyK } from "./format";
 
 export function Status({ kind, label }: { kind: StatusKind; label: string }) {
   return (

@@ -12,7 +12,7 @@ import type { FormEvent, ReactNode } from "react";
 import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
+import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
 
@@ -50,6 +50,12 @@ export function useFirmCase(): Case {
 export function useProviderCase(): ProviderCase {
   const { dashboard } = useApp();
   if (dashboard.role !== "provider") throw new Error("This card is for medical providers only");
+  return dashboard.case;
+}
+
+export function useClientCase(): ClientCase {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "client") throw new Error("This card is for the client only");
   return dashboard.case;
 }
 

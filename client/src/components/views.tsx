@@ -5,6 +5,7 @@ import type { Role } from "@/data/nav";
 import { useApp } from "./AppShell";
 import { Overview, SectionTile } from "./Overview";
 import type { Tile } from "./Overview";
+import { CardMyDetails, CardMyIncident } from "./client-cards";
 import {
   CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
   CardFinancials, CardProviderBills, CardTasks, CardUpdates,
@@ -65,13 +66,22 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     progress: () => <><h2>Case progress</h2><div className="grid g-wide"><CardProviderUpdates /><CardProgress /></div></>,
     team: () => <><h2>Legal team</h2><CardTeam full /></>,
   },
-  // Placeholder until the client's dashboard is designed.
+  // The overview is a placeholder until the client's dashboard is designed.
   client: {
     overview: () => (
       <div className="card">
         <div className="hd"><h3>Your case</h3></div>
         <p className="lead">Your dashboard is still being built. For now, the progress bar above shows where your case stands.</p>
       </div>
+    ),
+    profile: () => (
+      <>
+        <h2>My information</h2>
+        <div className="grid g-2">
+          <CardMyDetails />
+          <CardMyIncident />
+        </div>
+      </>
     ),
   },
 };

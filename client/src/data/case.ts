@@ -26,7 +26,7 @@ export const CASE: Case = {
   stageIndex: 4,
 
   client: {
-    name: "Maria Alvarez", initials: "MA", dob: "Mar 3, 1992", age: 34,
+    name: "Maria Alvarez", initials: "MA", dob: "1992-03-03", age: 34,
     phone: "(555) 014-2290", email: "maria.alvarez@example.com",
     address: "418 Larkspur Ave, Apt 2, Oakland, CA",
     language: "English, Spanish", bestTime: "Weekdays after 4 PM",
@@ -163,10 +163,12 @@ export function forProvider(c: Case, providerId: string): ProviderCase {
 }
 
 // The record the client (plaintiff) is allowed to see. Same rule: whitelist only.
-// Their dashboard isn't designed yet, so this is just what the shared shell shows.
+// The rest of their dashboard isn't designed yet, so this is what the shared
+// shell shows plus what the firm holds about them personally.
 export function forClient(c: Case): ClientCase {
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     title: c.title, shortTitle: c.shortTitle,
+    client: c.client, incident: c.incident, injuries: c.injuries,
   };
 }

@@ -23,6 +23,18 @@ export interface ProviderFile {
   requests: ProviderRequest[];
 }
 
+// The personal details the firm holds on its client. The client can read and
+// change these (src/data/details.ts lists them). `dob` is YYYY-MM-DD.
+export interface ClientDetails {
+  name: string; dob: string;
+  phone: string; email: string; address: string;
+  language: string; bestTime: string; occupation: string;
+}
+// `updated` is the day (YYYY-MM-DD) the client last changed their details, if they have.
+export interface Client extends ClientDetails { initials: string; age: number; updated?: string }
+// What is wrong with the details a client sent, by field.
+export type DetailErrors = Partial<Record<keyof ClientDetails, string>>;
+
 // What every role sees: which case this is and how far along it is.
 export interface CaseFrame {
   id: string;
@@ -36,11 +48,7 @@ export interface Case extends CaseFrame {
   title: string;
   shortTitle: string;
   defendant: string;
-  client: {
-    name: string; initials: string; dob: string; age: number;
-    phone: string; email: string; address: string;
-    language: string; bestTime: string; occupation: string;
-  };
+  client: Client;
   incident: { date: string; type: string; location: string; summary: string };
   injuries: Injury[];
   financials: {
@@ -75,11 +83,15 @@ export interface ProviderCase extends CaseFrame {
   team: TeamMember[];
 }
 
-// What the client (the plaintiff) sees. Their dashboard isn't designed yet, so
-// for now this is only what the shared shell needs.
+// What the client (the plaintiff) sees. The rest of their dashboard isn't
+// designed yet, so for now this is what the shared shell needs and what the
+// firm holds about them personally.
 export interface ClientCase extends CaseFrame {
   title: string;
   shortTitle: string;
+  client: Client;
+  incident: Case["incident"];
+  injuries: Injury[];
 }
 
 export interface User { id: string; name: string; initials: string; title: string }

@@ -3,7 +3,7 @@
 import type { Case, CaseUpdate, Injury } from "@/data/types";
 import { useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
-import { FirmOnly, Go, Status, billsTotal, money, moneyK } from "./ui";
+import { FirmOnly, Go, Status, billsTotal, day, money, moneyK } from "./ui";
 
 export function InjuriesList({ injuries, withProvider }: { injuries: Injury[]; withProvider?: boolean }) {
   return injuries.map((j) => (
@@ -98,8 +98,8 @@ export function CardClient({ full }: { full?: boolean }) {
   const { client: c, incident, injuries } = useFirmCase();
   return (
     <div className="card">
-      <div className="hd"><h3>Client</h3>{!full && <Go to="client">Full profile</Go>}</div>
-      <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>Age {c.age} · born {c.dob}</small></div></div>
+      <div className="hd"><h3>Client</h3>{c.updated && <span className="tag shared" title="The client changed their own details"><Icon name="user" sm />Updated by client {day(c.updated, false)}</span>}{!full && <Go to="client">Full profile</Go>}</div>
+      <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>Age {c.age} · born {day(c.dob)}</small></div></div>
       <div className="kv">
         <Icon name="phone" /><span>{c.phone}</span>
         <Icon name="mail" /><span>{c.email}</span>

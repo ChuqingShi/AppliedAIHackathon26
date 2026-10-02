@@ -3,7 +3,7 @@
 import { useApp, useProviderCase } from "./AppShell";
 import { InjuriesList } from "./firm-cards";
 import { Icon } from "./Icon";
-import { Go, Status, money } from "./ui";
+import { Go, Status, day, money } from "./ui";
 
 const UPLOAD_TOAST = "Upload isn't wired up in the prototype";
 
@@ -33,7 +33,7 @@ export function CardPatient({ full }: { full?: boolean }) {
   return (
     <div className="card">
       <div className="hd"><h3>Patient</h3>{!full && <Go to="patient">Details</Go>}</div>
-      <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>Age {p.age} · born {p.dob}</small></div></div>
+      <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>Age {p.age} · born {day(p.dob)}</small></div></div>
       <div className="kv">
         <Icon name="phone" /><span>{p.phone}</span>
         <Icon name="cal" /><span>Your patient since {p.since}</span>
