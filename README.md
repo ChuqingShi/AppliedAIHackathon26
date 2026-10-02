@@ -65,4 +65,4 @@ pytest
 ```
 
 ## Not included
-Full-text search over documents and AI summaries. A working search version is archived (deprecated) on the `feature/pdfsearch` branch if we need it later. Don't merge that branch into `main`.
+Full-text search over documents and AI summaries. A working search version is archived (deprecated) on the `feature/rag_pdfsearch-archived` branch if we need it later. Don't merge that branch into `main`.
