@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 const ICONS = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  unlock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.6-1.7" /></>,
   eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
   check: <polyline points="5 12.5 10 17.5 19 7" />,
   bang: <><line x1="12" y1="5" x2="12" y2="14" /><line x1="12" y1="19" x2="12" y2="19.5" /></>,
@@ -28,6 +29,7 @@ const ICONS = {
   x: <><line x1="6" y1="6" x2="18" y2="18" /><line x1="18" y1="6" x2="6" y2="18" /></>,
   plus: <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>,
   redo: <><polyline points="15 4 20 9 15 14" /><path d="M20 9H10a6 6 0 0 0 0 12h3" /></>,
+  edit: <><path d="M4 20h4L19 9l-4-4L4 16z" /><line x1="13" y1="7" x2="17" y2="11" /></>,
   logout: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></>,
 } satisfies Record<string, ReactNode>;
 

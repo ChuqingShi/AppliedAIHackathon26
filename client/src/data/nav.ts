@@ -28,8 +28,10 @@ export const NAV: Record<Role, NavItem[]> = {
     { id: "progress", label: "Case progress", icon: "clock" },
     { id: "team", label: "Legal team", icon: "users" },
   ],
-  // Not designed yet; the lawyers' dashboard comes first.
+  // The overview isn't designed yet (the lawyers' dashboard comes first). So far
+  // the client can see and correct what the firm holds about them.
   client: [
     { id: "overview", label: "Overview", icon: "grid" },
+    { id: "profile", label: "My information", icon: "user" },
   ],
 };

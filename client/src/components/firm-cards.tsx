@@ -3,7 +3,7 @@
 import type { Case, CaseUpdate, Injury } from "@/data/types";
 import { useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
-import { FirmOnly, Go, Status, billsTotal, money, moneyK } from "./ui";
+import { FirmOnly, Go, Status, billsTotal, day, money, moneyK } from "./ui";
 
 export function InjuriesList({ injuries, withProvider }: { injuries: Injury[]; withProvider?: boolean }) {
   if (!injuries.length) return <p className="ink2" style={{ fontSize: 13 }}>No injuries recorded.</p>;
@@ -135,8 +135,8 @@ export function CardClient({ full }: { full?: boolean }) {
   const { client: c, incident, injuries } = useFirmCase();
   return (
     <div className="card">
-      <div className="hd"><h3>Client</h3>{!full && <Go to="client">Full profile</Go>}</div>
-      <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>{[c.age != null && `Age ${c.age}`, c.dob && `born ${c.dob}`].filter(Boolean).join(" · ")}</small></div></div>
+      <div className="hd"><h3>Client</h3>{c.updated && <span className="tag shared" title="The client changed their own details"><Icon name="user" sm />Updated by client {day(c.updated, false)}</span>}{!full && <Go to="client">Full profile</Go>}</div>
+      <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>{[c.age != null && `Age ${c.age}`, c.dob && `born ${day(c.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
       <div className="kv">
         {c.phone && <><Icon name="phone" /><span>{c.phone}</span></>}
         {c.email && <><Icon name="mail" /><span>{c.email}</span></>}
