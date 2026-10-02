@@ -26,6 +26,10 @@ export interface Draft { to: string; message: string }
 // `draft` is a message asking for the answer from whoever would have it; with
 // `missing`, the case doesn't hold the answer, so sending that message is the next step.
 export interface Reply { text: string; sources: Passage[]; draft?: Draft; missing?: boolean }
+// One message in the firm's conversation with the assistant: what the firm asked
+// (`me`), or the assistant's reply with the question it answers (`asked`). Saved
+// ones have `at`, when they were said.
+export interface ChatMessage extends Partial<Reply> { me?: boolean; text: string; asked?: string; at?: string }
 // A question the firm sent to a medical provider or the client, and how far it has
 // got: sent, seen by them, answered, closed by the firm. Times are ISO timestamps.
 // `asked` is what the firm typed in the search box that led to it; only the firm gets it.
@@ -158,8 +162,9 @@ export interface OverviewLayout { removed: string[]; added: string[]; rows: stri
 // One dashboard, three roles: the signed-in user's role decides which record
 // the server builds, and so what the browser receives. `inquiries` are the
 // questions the firm has sent: all of them for the firm, and for a provider or
-// the client the ones sent to them.
+// the client the ones sent to them. `history` is the firm user's past conversation
+// with the assistant.
 export type Dashboard =
-  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[] }
+  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[]; history: ChatMessage[] }
   | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[] }
   | { role: "client"; user: User; case: ClientCase; inquiries: Inquiry[] };

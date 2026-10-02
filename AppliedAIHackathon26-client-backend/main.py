@@ -337,3 +337,40 @@ def update_inquiry(inquiry_id: int, change: dict = Body(...)):
     if not row:
         raise HTTPException(404, "No such inquiry")
     return _inquiry(row)
+
+
+# ---- What each user asked the assistant, and what it answered (SQLite only, never Clio) ----
+
+MAX_HISTORY_ROWS = 500   # kept per user and case; older messages are dropped
+MAX_MESSAGE_BYTES = 50_000
+
+
+@app.get("/users/{user_id}/chat")
+def chat_history(user_id: str, case_id: str):
+    """This user's conversation with the assistant on this case, oldest first."""
+    with connect() as conn:
+        rows = conn.execute("SELECT id, data, at FROM chat_history WHERE user_id=? AND case_id=? ORDER BY id", (user_id, case_id)).fetchall()
+    return [{**json.loads(r["data"]), "id": r["id"], "at": r["at"]} for r in rows]
+
+
+@app.post("/users/{user_id}/chat")
+def add_chat_history(user_id: str, case_id: str, messages: list[dict] = Body(...)):
+    """Appends messages (a question and its answer). The dashboard decides what a message is; this only stores it."""
+    now = datetime.now(timezone.utc).isoformat()
+    rows = [(user_id, case_id, json.dumps(m), now) for m in messages]
+    if any(len(data) > MAX_MESSAGE_BYTES for *_, data, _ in rows):
+        raise HTTPException(413, "That message is too large to keep")
+    with connect() as conn:
+        conn.executemany("INSERT INTO chat_history(user_id, case_id, data, at) VALUES (?,?,?,?)", rows)
+        conn.execute("""DELETE FROM chat_history WHERE user_id=? AND case_id=? AND id NOT IN
+                        (SELECT id FROM chat_history WHERE user_id=? AND case_id=? ORDER BY id DESC LIMIT ?)""",
+                     (user_id, case_id, user_id, case_id, MAX_HISTORY_ROWS))
+    return {"added": len(rows)}
+
+
+@app.delete("/users/{user_id}/chat")
+def clear_chat_history(user_id: str, case_id: str):
+    """Forgets this user's conversation on this case."""
+    with connect() as conn:
+        conn.execute("DELETE FROM chat_history WHERE user_id=? AND case_id=?", (user_id, case_id))
+    return {"cleared": True}

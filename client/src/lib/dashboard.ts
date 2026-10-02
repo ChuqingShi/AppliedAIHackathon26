@@ -8,6 +8,7 @@ import { forClient, forProvider, loadCase } from "@/data/case";
 import type { Dashboard } from "@/data/types";
 import { CLIENT } from "@/data/nav";
 import { briefing } from "./assistant";
+import { getHistory } from "./history";
 import { getInquiries } from "./inquiries";
 import { getClientEdits, withClientEdits } from "./profile";
 import { requireSession } from "./session";
@@ -23,7 +24,7 @@ export const getDashboard = cache(async (): Promise<Dashboard> => {
   const inquiries = await getInquiries(c.id);
   const sentTo = (id: string) => inquiries.filter((q) => q.to.id === id).map((q) => ({ ...q, asked: null }));
   switch (account.role) {
-    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries };
+    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries, history: await getHistory(account.id, c.id) };
     case "provider": return { role: "provider", user, case: forProvider(c, account.providerId), inquiries: sentTo(account.providerId) };
     // The client goes by the name on their record, which they can change.
     case "client": return { role: "client", user: { ...user, name: c.client.name, initials: c.client.initials }, case: forClient(c), inquiries: sentTo(CLIENT) };

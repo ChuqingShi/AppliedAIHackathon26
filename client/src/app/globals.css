@@ -278,6 +278,19 @@ a { color: inherit; text-decoration: none; }
 .asked { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--good-ink); }
 .asked a { color: var(--acc); font-weight: 600; text-decoration: underline; }
 .asked .ic { margin-top: 2px; }
+/* the history: what was asked before, each opening to its answer */
+.ask .hist-btn { background: #fff; color: var(--acc); border: 1px solid var(--acc-soft); }
+.ask .hist-btn:hover, .ask .hist-btn.on { background: var(--acc-soft); filter: none; }
+.hist { border-top: 1px solid var(--line); }
+.hist:first-child { border-top: 0; }
+.hist-q { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 0; text-align: left; font-size: 13.5px; }
+.hist-q .ic { color: var(--ink2); flex: none; }
+.hist-q span { flex: 1; min-width: 0; }
+.hist-q small { color: var(--ink2); white-space: nowrap; }
+.hist.open .hist-q { font-weight: 600; }
+.hist-q:hover span { color: var(--acc); }
+.hist-a { margin: 0 0 12px 24px; padding: 9px 12px; border-radius: 10px; background: var(--plane); font-size: 13.5px; line-height: 1.45; }
+.bubble.me .when { display: block; margin-bottom: 4px; font-size: 11px; color: var(--ink2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); background: #fff; }
 .chips button:hover { border-color: var(--acc); color: var(--acc); }
