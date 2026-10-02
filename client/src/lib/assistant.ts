@@ -5,21 +5,69 @@ import "server-only";
 import { billsTotal, money } from "@/components/format";
 import type { Case } from "@/data/types";
 
+// A short catch-up built from the latest updates and the next open task.
 export function briefing(c: Case) {
-  const f = c.financials;
-  return `Since Monday: the insurer made a first offer of **${money(f.offer)}** against our **${money(f.demand)}** demand and is questioning the shoulder surgery. Summit Orthopedics owes a narrative report by Oct 8. **Counteroffer is due ${f.counterDue}.**`;
+  const latest = c.updates.slice(0, 2).map((u) => `**${u.firm.t}** (${u.date})`);
+  const next = c.tasks[0];
+  const parts = [
+    latest.length ? `Latest: ${latest.join("; ")}.` : "",
+    next ? `Next due: **${next.title}**, ${next.due}.` : "",
+  ].filter(Boolean);
+  return parts.join(" ") || "Nothing has been recorded on this case yet.";
 }
 
-// Canned answers so the box is clickable in the demo. Replace with a call to
-// the backend (which calls the model with the case record) when this is built.
+// Keyword answers over the case record, so the box is clickable in the demo.
+// Replace with a call to the backend (which calls the model with the case
+// record) when this is built.
 export function answer(c: Case, q: string) {
   const f = c.financials;
   const t = q.toLowerCase();
-  if (/miss|outstanding|waiting|still need/.test(t)) return "Two things are outstanding: the **final bill from Harbor Pain Management** (Priya is chasing it, due Mon, Oct 5) and the **narrative report from Summit Orthopedics** (due Thu, Oct 8).";
-  if (/due|next|task|to-?do|deadline/.test(t)) return `Next up: **call the client** about the offer (Mon, Oct 5), then **send the counteroffer** (${f.counterDue}). The filing deadline is ${c.deadline.date}, ${c.deadline.daysLeft} days away.`;
-  if (/apart|gap|offer|demand|target|settle|money|financ|worth/.test(t)) return `Their offer is **${money(f.offer)}**; our demand is **${money(f.demand)}**. Our target range is ${money(f.targetLow)} – ${money(f.targetHigh)}, so the gap to the low end is **${money(f.targetLow - f.offer)}**. The planned counter is ${money(f.counter)}.`;
-  if (/client|maria|phone|call|contact|injur/.test(t)) return `**${c.client.name}**, ${c.client.age}. Best reached at ${c.client.phone}, ${c.client.bestTime.toLowerCase()}. Injuries: rotator cuff tear (surgery May 12), neck strain, lower back strain.`;
-  if (/provider|bill|lien|medical|record/.test(t)) return `Medical bills total **${money(billsTotal(c))}** across ${c.providers.length} providers. Records are in from all of them; one final bill (Harbor Pain Management) is still pending.`;
-  if (/chang|new|week|update|happen|summary|catch/.test(t)) return briefing(c);
-  return "This prototype only has sample answers. Try asking what changed, how far apart the numbers are, what is missing, or what is due next.";
+  const urgent = c.tasks.filter((x) => x.urgent);
+
+  if (/miss|outstanding|waiting|still need/.test(t)) {
+    const waiting = c.providers.filter((p) => p.bill === "warn" || p.records === "warn");
+    if (!waiting.length && !urgent.length) return "Nothing is outstanding right now.";
+    return [
+      waiting.length ? `Waiting on **${waiting.map((p) => p.name).join(", ")}**.` : "",
+      urgent.length ? `${urgent.length} to-do${urgent.length > 1 ? "s are" : " is"} due within a week or overdue, starting with **${urgent[0].title}** (${urgent[0].due}).` : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  if (/due|next|task|to-?do|deadline/.test(t)) {
+    const next = c.tasks.slice(0, 2).map((x) => `**${x.title}** (${x.due})`);
+    const d = c.deadline;
+    return [
+      next.length ? `Next up: ${next.join(", then ")}.` : "No open to-dos.",
+      d ? `${d.label}: ${d.date}${d.met ? " (satisfied)" : `, ${d.daysLeft} days away`}.` : "",
+    ].filter(Boolean).join(" ");
+  }
+
+  if (/apart|gap|offer|demand|target|settle|money|financ|worth|number|value/.test(t)) {
+    const parts = [
+      f.offer != null ? `Their offer is **${money(f.offer)}**.` : "No offer is recorded in Clio.",
+      f.demand != null ? `Our demand is **${money(f.demand)}**.` : "",
+      f.targetLow != null && f.targetHigh != null ? `Our target range is ${money(f.targetLow)} – ${money(f.targetHigh)}.` : "",
+      f.estimatedValue != null ? `Estimated case value is **${money(f.estimatedValue)}**.` : "",
+      f.policyLimit != null ? `The policy limit is **${money(f.policyLimit)}**.` : "",
+      `Medical bills total **${money(billsTotal(c))}**.`,
+      f.note ?? "",
+    ];
+    return parts.filter(Boolean).join(" ");
+  }
+
+  if (/client|phone|call|contact|injur/.test(t)) {
+    const cl = c.client;
+    return [
+      `**${cl.name}**${cl.age != null ? `, ${cl.age}` : ""}.`,
+      cl.phone ? `Phone ${cl.phone}.` : "",
+      `Injuries: ${c.injuries.map((j) => j.name).join("; ") || "none recorded"}.`,
+    ].filter(Boolean).join(" ");
+  }
+
+  if (/provider|bill|lien|medical|record/.test(t)) {
+    return `Medical bills total **${money(billsTotal(c))}** across ${c.providers.length} providers.${f.liens != null ? ` Lien asserted against the recovery: ${money(f.liens)}.` : ""}`;
+  }
+
+  if (/chang|new|week|update|happen|summary|catch|recent/.test(t)) return briefing(c);
+  return "I can answer what changed, what the numbers are, what is missing, or what is due next.";
 }

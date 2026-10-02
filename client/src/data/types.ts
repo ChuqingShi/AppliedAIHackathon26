@@ -1,5 +1,7 @@
 // The shapes the dashboard works with. Types only, so this is safe to import
-// from client components; the data itself is built on the server (src/lib/dashboard.ts).
+// from client components; the data itself is built on the server (src/lib/dashboard.ts)
+// from the Sapini backend's digest of the Clio matter. Fields Clio doesn't hold
+// arrive as null and the cards leave them out.
 
 import type { IconName } from "@/components/Icon";
 
@@ -9,7 +11,7 @@ export interface Stage { name: string; date: string }
 export interface Injury { name: string; status: string; by: string }
 export interface Provider { id: string; name: string; billed: number; records: StatusKind; bill: StatusKind; contact: string }
 export interface Task { title: string; who: string; due: string; urgent?: boolean }
-export interface CaseDocument { name: string; kind: string; date: string; important?: boolean; pending?: boolean }
+export interface CaseDocument { id?: number; name: string; kind: string; date: string; important?: boolean; pending?: boolean }
 export interface UpdateText { t: string; s: string }
 export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }
 export interface TeamMember { name: string; initials: string; role: string; main?: boolean }
@@ -17,21 +19,29 @@ export interface BillLine { name: string; amount: number }
 export interface ProviderDocument { name: string; date: string; status: StatusKind; label: string }
 export interface ProviderRequest { title: string; detail: string; due: string; daysLeft: number }
 export interface ProviderFile {
+  user: { name: string; initials: string; role: string }; // the provider's contact on this case
   patientSince: string;
   billLines: BillLine[];
   documents: ProviderDocument[];
   requests: ProviderRequest[];
 }
 
-// The personal details the firm holds on its client. The client can read and
-// change these (src/data/details.ts lists them). `dob` is YYYY-MM-DD.
+// The personal details a client can read and change about themselves, as they
+// send them (src/data/details.ts lists them). `dob` is YYYY-MM-DD.
 export interface ClientDetails {
   name: string; dob: string;
   phone: string; email: string; address: string;
   language: string; bestTime: string; occupation: string;
 }
-// `updated` is the day (YYYY-MM-DD) the client last changed their details, if they have.
-export interface Client extends ClientDetails { initials: string; age: number; updated?: string }
+// The client as the firm holds them. A detail Clio doesn't have is null (`dob`
+// is "") until the client fills it in. `updated` is the day (YYYY-MM-DD) the
+// client last changed their details, if they have.
+export interface Client {
+  name: string; initials: string; dob: string; age: number | null;
+  phone: string | null; email: string | null; address: string | null;
+  language: string | null; bestTime: string | null; occupation: string | null;
+  updated?: string;
+}
 // What is wrong with the details a client sent, by field.
 export type DetailErrors = Partial<Record<keyof ClientDetails, string>>;
 
@@ -47,20 +57,23 @@ export interface CaseFrame {
 export interface Case extends CaseFrame {
   title: string;
   shortTitle: string;
-  defendant: string;
+  defendant: string | null;
   client: Client;
   incident: { date: string; type: string; location: string; summary: string };
   injuries: Injury[];
   financials: {
-    offer: number; offerDate: string;
-    demand: number; demandDate: string;
-    targetLow: number; targetHigh: number;
-    counter: number; counterDue: string;
-    policyLimit: number;
+    offer: number | null; offerDate: string | null;
+    demand: number | null; demandDate: string | null;
+    targetLow: number | null; targetHigh: number | null;
+    counter: number | null; counterDue: string | null;
+    estimatedValue: number | null;
+    policyLimit: number | null;
+    liens: number | null; // asserted against the recovery (e.g. a Medicaid lien)
     costs: number; feeShare: number;
+    note: string | null; // the firm's own read on the numbers
   };
-  insurer: { name: string; claim: string; adjuster: string };
-  deadline: { label: string; date: string; daysLeft: number };
+  insurer: { name: string | null; claim: string | null; adjuster: string | null };
+  deadline: { label: string; date: string; daysLeft: number; met: boolean } | null;
   providers: Provider[];
   tasks: Task[];
   documents: CaseDocument[];
@@ -72,7 +85,7 @@ export interface Case extends CaseFrame {
 // What one medical provider sees: status changes and their own bills and records.
 export interface ProviderCase extends CaseFrame {
   provider: { id: string; name: string };
-  patient: { name: string; initials: string; dob: string; age: number; phone: string; since: string };
+  patient: { name: string; initials: string; dob: string; age: number | null; phone: string | null; since: string };
   incident: { date: string; type: string; summary: string };
   injuries: Injury[];
   lien: number;

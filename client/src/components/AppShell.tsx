@@ -190,7 +190,7 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
           <small>Demo · signed in as</small>
           <div className="seg">
             {demoAccounts.map((a) => (
-              <button key={a.id} name="account" value={a.id} className={a.id === user.id ? "on" : ""} aria-pressed={a.id === user.id}>{SHORT_ROLE[a.role]}</button>
+              <button key={a.id} name="account" value={a.id} className={a.role === role ? "on" : ""} aria-pressed={a.role === role}>{SHORT_ROLE[a.role]}</button>
             ))}
           </div>
         </form>

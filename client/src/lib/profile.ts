@@ -1,6 +1,6 @@
 // What the client has changed about their own details. Demo storage: one cookie
-// for the case, so the firm and the providers see the change too when the demo
-// switches account. When the backend has a database, keep these there instead
+// per case, so the firm and the providers see the change too when the demo
+// switches account, and one case's changes never show on another. When the backend has a database, keep these there instead
 // (not in Clio, which is read-only).
 
 import "server-only";
@@ -10,7 +10,7 @@ import type { DetailField } from "@/data/details";
 import type { Case, ClientDetails, DetailErrors } from "@/data/types";
 
 const YEAR = 60 * 60 * 24 * 365;
-const COOKIE = "caseboard_client_details";
+const cookieFor = (caseId: string) => `caseboard_client_details_${caseId.replace(/[^\w-]/g, "")}`;
 
 type ClientEdits = ClientDetails & { updated: string };
 
@@ -44,8 +44,8 @@ export function checkDetails(read: (key: keyof ClientDetails) => unknown): { det
 }
 
 // The client's own changes, or null if they have made none.
-export async function getClientEdits(): Promise<ClientEdits | null> {
-  const value = (await cookies()).get(COOKIE)?.value;
+export async function getClientEdits(caseId: string): Promise<ClientEdits | null> {
+  const value = (await cookies()).get(cookieFor(caseId))?.value;
   try {
     const stored = value ? JSON.parse(value) : null;
     if (!stored || typeof stored !== "object") return null;
@@ -56,9 +56,9 @@ export async function getClientEdits(): Promise<ClientEdits | null> {
   }
 }
 
-export async function setClientEdits(details: ClientDetails) {
+export async function setClientEdits(caseId: string, details: ClientDetails) {
   const edits: ClientEdits = { ...details, updated: today() };
-  (await cookies()).set(COOKIE, JSON.stringify(edits), {
+  (await cookies()).set(cookieFor(caseId), JSON.stringify(edits), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

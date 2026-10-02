@@ -4,6 +4,7 @@ import { startTransition, useState, useTransition } from "react";
 import type { FormEvent } from "react";
 import { saveClientDetails } from "@/app/actions";
 import { DETAILS } from "@/data/details";
+import type { DetailField } from "@/data/details";
 import type { DetailErrors } from "@/data/types";
 import { useApp, useClientCase } from "./AppShell";
 import { InjuriesList } from "./firm-cards";
@@ -41,6 +42,13 @@ export function CardMyDetails() {
     setEditing(false);
   }
 
+  // A detail as the client reads it, or null when the firm doesn't have it.
+  const shown = (f: DetailField) => {
+    const value = client[f.key];
+    if (!value) return null;
+    return f.type === "date" ? [day(value), client.age != null && `age ${client.age}`].filter(Boolean).join(" · ") : value;
+  };
+
   if (!editing) {
     return (
       <div className="card">
@@ -49,7 +57,7 @@ export function CardMyDetails() {
         {DETAILS.map((f) => (
           <div className="row r-kv" style={{ gridTemplateColumns: "170px 1fr" }} key={f.key}>
             <span>{f.label}</span>
-            <b style={{ fontWeight: 500 }}>{f.type === "date" ? `${day(client[f.key])} · age ${client.age}` : client[f.key]}</b>
+            <b style={{ fontWeight: 500 }}>{shown(f) ?? <span className="muted">Not on file</span>}</b>
           </div>
         ))}
         {client.updated && <p className="muted" style={{ fontSize: 12.5, marginTop: 12 }}>You last updated this on {day(client.updated)}.</p>}
@@ -64,7 +72,7 @@ export function CardMyDetails() {
         {DETAILS.map((f) => (
           <label className={f.wide ? "fld wide" : "fld"} key={f.key}>
             {f.label}
-            <input name={f.key} type={f.type} defaultValue={client[f.key]} maxLength={f.max} autoComplete={f.autoComplete} aria-invalid={errors[f.key] ? true : undefined} required />
+            <input name={f.key} type={f.type} defaultValue={client[f.key] ?? ""} maxLength={f.max} autoComplete={f.autoComplete} aria-invalid={errors[f.key] ? true : undefined} required />
             {errors[f.key] && <Status kind="warn" label={errors[f.key]!} />}
           </label>
         ))}
@@ -85,7 +93,7 @@ export function CardMyIncident() {
     <div className="card">
       <div className="hd"><h3>Your incident and injuries</h3></div>
       <div className="sect" style={{ marginTop: 0 }}>Incident · {incident.date}</div>
-      <p style={{ fontSize: 13.5 }}>{incident.type}. {incident.summary} <span className="ink2">{incident.location}.</span></p>
+      <p style={{ fontSize: 13.5 }}>{incident.type}. {incident.summary}{incident.location && <> <span className="ink2">{incident.location}.</span></>}</p>
       <div className="sect">Injuries</div>
       <InjuriesList injuries={injuries} withProvider />
       <p className="ink2" style={{ fontSize: 13, marginTop: 14 }}>These come from the case file and your medical records, so they can’t be changed here. If something looks wrong, tell your legal team.</p>

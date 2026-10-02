@@ -11,7 +11,7 @@ import { checkDetails, setClientEdits } from "@/lib/profile";
 import { createSession, deleteSession, requireSession } from "@/lib/session";
 
 export async function login(formData: FormData) {
-  const account = findAccount(formData.get("account"));
+  const account = await findAccount(formData.get("account"));
   if (!account) redirect("/login");
   await createSession(account.id);
   redirect("/overview");
@@ -43,6 +43,6 @@ export async function saveClientDetails(form: FormData): Promise<DetailErrors | 
   const checked = checkDetails((key) => form.get(key));
   if ("errors" in checked) return checked.errors;
   const { client } = dashboard.case;
-  if (DETAILS.some((f) => checked.details[f.key] !== client[f.key])) await setClientEdits(checked.details);
+  if (DETAILS.some((f) => checked.details[f.key] !== client[f.key])) await setClientEdits(dashboard.case.id, checked.details);
   return null;
 }

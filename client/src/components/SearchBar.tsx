@@ -23,8 +23,8 @@ function searchIndex(d: Dashboard): Hit[] {
       ...c.tasks.map((t) => ({ label: t.title, sub: `To-do · ${t.who} · ${t.due}`, go: "todo", icon: "task" as const })),
       ...c.providers.map((p) => ({ label: p.name, sub: `Medical provider · ${money(p.billed)}`, go: "providers", icon: "users" as const })),
       ...c.updates.map((u) => ({ label: u.firm.t, sub: `Update · ${u.date}`, go: "updates", icon: "clock" as const })),
-      { label: c.client.name, sub: `Client · ${c.client.phone}`, go: "client", icon: "user" },
-      { label: "Offer, demand and target range", sub: "Financials", go: "financials", icon: "dollar" },
+      { label: c.client.name, sub: c.client.phone ? `Client · ${c.client.phone}` : "Client", go: "client", icon: "user" },
+      { label: "Case value, policy limit and medical bills", sub: "Financials", go: "financials", icon: "dollar" },
     ];
   }
   if (d.role === "provider") {

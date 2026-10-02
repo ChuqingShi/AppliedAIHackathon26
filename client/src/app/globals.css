@@ -176,7 +176,7 @@ a { color: inherit; text-decoration: none; }
 .row > .ic { color: var(--ink2); }
 .r-task { grid-template-columns: 18px 1fr auto; }
 .r-doc { grid-template-columns: 18px 1fr auto; }
-.r-upd { grid-template-columns: 50px 1fr auto; align-items: start; }
+.r-upd { grid-template-columns: 96px 1fr auto; align-items: start; }
 .r-upd .d { font-size: 12.5px; color: var(--muted); padding-top: 1px; }
 .r-upd b, .r-task b, .r-team b { font-weight: 600; }
 .r-team { grid-template-columns: 32px 1fr auto; }

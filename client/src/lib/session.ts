@@ -13,7 +13,7 @@ const WEEK = 60 * 60 * 24 * 7;
 
 export const getSession = cache(async () => {
   const id = (await cookies()).get(COOKIE)?.value;
-  return findAccount(id) ?? null;
+  return (await findAccount(id)) ?? null;
 });
 
 // For anything behind the login: returns the account, or sends the visitor to /login.

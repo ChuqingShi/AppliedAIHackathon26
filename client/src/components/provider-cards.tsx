@@ -14,14 +14,14 @@ export function CardProgress() {
   return (
     <div className="card">
       <div className="hd"><h3>How the case is going</h3><Go to="progress">Full history</Go></div>
-      <p className="lead">The case is in <b>{p.stages[p.stageIndex].name.toLowerCase()}</b> with the insurance company. Your final bill of <b>{money(p.lien)}</b> is part of the demand. You will be notified here as soon as there is a settlement; providers are paid at the final step.</p>
+      <p className="lead">The case is in <b>{p.stages[p.stageIndex].name.toLowerCase()}</b>. Your bill of <b>{money(p.lien)}</b> is on file with the law firm. You will be notified here as soon as there is a settlement; providers are paid at the final step.</p>
       <div className="lien"><b>{money(p.lien)}</b><span>Your lien balance on this case</span></div>
       {r && (
         <div className="need">
           <div className="k"><Icon name="bang" />Needed from you</div>
           <div className="t">{r.title}</div>
           <p>{r.detail}</p>
-          <div className="rw"><span className="st"><Icon name="cal" sm />Due {r.due} · {r.daysLeft} days left</span><button className="btn sm" onClick={() => toast(UPLOAD_TOAST)}><Icon name="upload" />Upload</button></div>
+          <div className="rw"><span className="st"><Icon name="cal" sm />Due {r.due} · {r.daysLeft >= 0 ? `${r.daysLeft} days left` : `${-r.daysLeft} days overdue`}</span><button className="btn sm" onClick={() => toast(UPLOAD_TOAST)}><Icon name="upload" />Upload</button></div>
         </div>
       )}
     </div>
@@ -33,10 +33,10 @@ export function CardPatient({ full }: { full?: boolean }) {
   return (
     <div className="card">
       <div className="hd"><h3>Patient</h3>{!full && <Go to="patient">Details</Go>}</div>
-      <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>Age {p.age} · born {day(p.dob)}</small></div></div>
+      <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>{[p.age != null && `Age ${p.age}`, p.dob && `born ${day(p.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
       <div className="kv">
-        <Icon name="phone" /><span>{p.phone}</span>
-        <Icon name="cal" /><span>Your patient since {p.since}</span>
+        {p.phone && <><Icon name="phone" /><span>{p.phone}</span></>}
+        {p.since && <><Icon name="cal" /><span>Your patient since {p.since}</span></>}
       </div>
       <div className="sect">Incident · {incident.date}</div>
       <p style={{ fontSize: 13.5 }}>{incident.type}. {incident.summary}</p>
@@ -70,6 +70,7 @@ export function CardRecords() {
   return (
     <div className="card">
       <div className="hd"><h3>Your medical records &amp; documents</h3><button className="btn sm" onClick={() => toast(UPLOAD_TOAST)}><Icon name="upload" />Upload</button></div>
+      {!documents.length && <div className="empty">Nothing on file from you yet.</div>}
       {documents.map((d) => (
         <div className="row r-doc" key={d.name}><Icon name="doc" /><div>{d.name}<small>{d.date}</small></div><Status kind={d.status} label={d.label} /></div>
       ))}
@@ -79,10 +80,10 @@ export function CardRecords() {
 
 export function CardBill() {
   const { billLines, lien } = useProviderCase();
-  const max = Math.max(...billLines.map((l) => l.amount));
+  const max = Math.max(1, ...billLines.map((l) => l.amount));
   return (
     <div className="card">
-      <div className="hd"><h3>Your bill</h3><Status kind="good" label="Final · in the demand" /></div>
+      <div className="hd"><h3>Your bill</h3>{billLines.length > 0 && <Status kind="good" label="On file" />}</div>
       {billLines.map((l) => (
         <div className="line" key={l.name}><span>{l.name}</span><div><div className="bar" style={{ width: `${(l.amount / max) * 100}%` }} title={`${l.name}: ${money(l.amount)}`} /></div><span className="num">{money(l.amount)}</span></div>
       ))}
@@ -97,8 +98,9 @@ export function CardProviderUpdates({ limit }: { limit?: number }) {
   return (
     <div className="card">
       <div className="hd"><h3>Status updates</h3>{limit ? <Go to="progress">All updates</Go> : null}</div>
-      {list.map((u) => (
-        <div className="row r-upd" style={{ gridTemplateColumns: "50px 1fr" }} key={u.t}><span className="d">{u.date}</span><div><b>{u.t}</b><small>{u.s}</small></div></div>
+      {!list.length && <div className="empty">No updates shared with you yet.</div>}
+      {list.map((u, i) => (
+        <div className="row r-upd" style={{ gridTemplateColumns: "96px 1fr" }} key={i}><span className="d">{u.date}</span><div><b>{u.t}</b><small>{u.s}</small></div></div>
       ))}
     </div>
   );
