@@ -135,3 +135,33 @@ def save_overview_layout(user_id: str, layout: dict = Body(...)):
             (user_id, data, datetime.now(timezone.utc).isoformat()),
         )
     return layout
+
+
+# ---- What the client corrected about themselves (SQLite only, never Clio) ----
+
+# Far more than the details need: a handful of short fields.
+MAX_DETAILS_BYTES = 5_000
+
+
+# {case_id:path} because a matter's display number may contain a slash.
+@app.get("/cases/{case_id:path}/client-details")
+def client_details(case_id: str):
+    """What the client changed about their own details on this case, or null if they changed nothing."""
+    with connect() as conn:
+        row = conn.execute("SELECT details FROM client_details WHERE case_id=?", (case_id,)).fetchone()
+    return json.loads(row["details"]) if row else None
+
+
+@app.put("/cases/{case_id:path}/client-details")
+def save_client_details(case_id: str, details: dict = Body(...)):
+    """Replace the client's own details on this case. The dashboard checks them and lets only the client change them; this only stores them."""
+    data = json.dumps(details)
+    if len(data) > MAX_DETAILS_BYTES:
+        raise HTTPException(413, "Those details are too large to save")
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO client_details(case_id, details, updated_at) VALUES (?,?,?)
+               ON CONFLICT(case_id) DO UPDATE SET details=excluded.details, updated_at=excluded.updated_at""",
+            (case_id, data, datetime.now(timezone.utc).isoformat()),
+        )
+    return details

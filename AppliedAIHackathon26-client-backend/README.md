@@ -32,5 +32,6 @@ The CaseBoard client (`../client`) reads everything from these; nothing on the d
 - `GET /documents/{doc_id}`: a synced document file.
 - `GET /cases`: matters synced so far.
 - `GET` / `PUT /users/{user_id}/overview`: how one dashboard user arranged their overview (`null` until they change it). Stored in the `overview_layouts` table, so it follows them to any computer they sign in on.
+- `GET` / `PUT /cases/{case_id}/client-details`: what the client corrected about their own personal details (`null` until they change something). Stored in the `client_details` table, because Clio is read-only; the dashboard lays it over the client in `/case`, so the firm and the providers see it too.
 
 Optional: set `FIRM_NAME` in `.env` to name the firm on the dashboard (Clio's matter data doesn't include it).

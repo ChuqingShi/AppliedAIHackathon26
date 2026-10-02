@@ -10,7 +10,7 @@ import { DETAILS } from "@/data/details";
 import type { DetailErrors, OverviewLayout } from "@/data/types";
 import { setOverviewLayout } from "@/lib/preferences";
 import { checkDetails, setClientEdits } from "@/lib/profile";
-import { createSession, deleteSession, requireSession } from "@/lib/session";
+import { createSession, deleteSession, getSession, requireSession } from "@/lib/session";
 
 export async function login(formData: FormData) {
   const account = await findAccount(formData.get("account"));
@@ -30,6 +30,12 @@ export async function dismissBriefing() {
 export async function logout() {
   await deleteSession();
   redirect("/login");
+}
+
+// Who this browser is signed in as now. The shell asks when its tab is looked at
+// again, in case another tab has signed in as someone else since.
+export async function currentAccount() {
+  return (await getSession())?.id ?? null;
 }
 
 export async function askAssistant(question: string) {
@@ -55,6 +61,10 @@ export async function saveClientDetails(form: FormData): Promise<DetailErrors | 
   const checked = checkDetails((key) => form.get(key));
   if ("errors" in checked) return checked.errors;
   const { client } = dashboard.case;
-  if (DETAILS.some((f) => checked.details[f.key] !== client[f.key])) await setClientEdits(dashboard.case.id, checked.details);
+  if (DETAILS.some((f) => checked.details[f.key] !== client[f.key])) {
+    await setClientEdits(dashboard.case.id, checked.details);
+    // Send the case back with the reply, now that it has the saved details.
+    refresh();
+  }
   return null;
 }

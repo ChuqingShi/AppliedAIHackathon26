@@ -1,16 +1,16 @@
-// What the client has changed about their own details. Demo storage: one cookie
-// per case, so the firm and the providers see the change too when the demo
-// switches account, and one case's changes never show on another. When the backend has a database, keep these there instead
-// (not in Clio, which is read-only).
+// What the client has changed about their own details. Clio is read-only, so
+// the changes are kept per case in the Sapini backend's database and laid over
+// what Clio has: the firm and the providers see them too, wherever they sign
+// in, and one case's changes never show on another.
 
 import "server-only";
-import { cookies } from "next/headers";
 import { DETAILS } from "@/data/details";
 import type { DetailField } from "@/data/details";
 import type { Case, ClientDetails, DetailErrors } from "@/data/types";
+import { saved } from "./store";
 
-const YEAR = 60 * 60 * 24 * 365;
-const cookieFor = (caseId: string) => `caseboard_client_details_${caseId.replace(/[^\w-]/g, "")}`;
+// The case id is the matter's display number, which may contain a slash; the backend's route allows for that.
+const pathFor = (caseId: string) => `/cases/${caseId.split("/").map(encodeURIComponent).join("/")}/client-details`;
 
 type ClientEdits = ClientDetails & { updated: string };
 
@@ -45,26 +45,16 @@ export function checkDetails(read: (key: keyof ClientDetails) => unknown): { det
 
 // The client's own changes, or null if they have made none.
 export async function getClientEdits(caseId: string): Promise<ClientEdits | null> {
-  const value = (await cookies()).get(cookieFor(caseId))?.value;
-  try {
-    const stored = value ? JSON.parse(value) : null;
-    if (!stored || typeof stored !== "object") return null;
-    const checked = checkDetails((key) => stored[key]);
-    return "details" in checked && isDay(stored.updated) ? { ...checked.details, updated: stored.updated } : null;
-  } catch {
-    return null;
-  }
+  const stored = await saved(pathFor(caseId));
+  if (!stored || typeof stored !== "object") return null;
+  const edits = stored as Record<string, unknown>;
+  const checked = checkDetails((key) => edits[key]);
+  return "details" in checked && isDay(edits.updated) ? { ...checked.details, updated: edits.updated } : null;
 }
 
 export async function setClientEdits(caseId: string, details: ClientDetails) {
   const edits: ClientEdits = { ...details, updated: today() };
-  (await cookies()).set(cookieFor(caseId), JSON.stringify(edits), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: YEAR,
-    path: "/",
-  });
+  await saved(pathFor(caseId), edits);
 }
 
 function initials(name: string) {

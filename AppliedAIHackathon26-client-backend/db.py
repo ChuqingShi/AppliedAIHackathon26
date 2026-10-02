@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS overview_layouts (
     layout TEXT NOT NULL,           -- JSON as the dashboard sent it
     updated_at TEXT NOT NULL
 );
+
+-- What the client corrected about their own personal details. Clio is
+-- read-only, so their changes are kept here and the dashboard lays them over
+-- what Clio has, for the firm and the providers as well as the client.
+CREATE TABLE IF NOT EXISTS client_details (
+    case_id TEXT PRIMARY KEY,       -- the case's id on the dashboard (the matter's display number)
+    details TEXT NOT NULL,          -- JSON as the dashboard sent it
+    updated_at TEXT NOT NULL
+);
 """
 
 

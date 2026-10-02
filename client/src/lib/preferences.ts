@@ -3,24 +3,10 @@
 // so it is the same on every computer they sign in on.
 
 import "server-only";
-import { API } from "@/data/case";
 import type { OverviewLayout, TileSize } from "@/data/types";
+import { saved } from "./store";
 
-// Reads the account's saved overview from the backend, or with `save` replaces it.
-async function overviewRequest(accountId: string, save?: OverviewLayout): Promise<unknown> {
-  const path = `/users/${encodeURIComponent(accountId)}/overview`;
-  let res: Response;
-  try {
-    res = await fetch(`${API}${path}`, save
-      ? { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(save) }
-      : { cache: "no-store" });
-  } catch {
-    throw new Error(`The Sapini backend isn't answering at ${API}. Start it with: uvicorn main:app --port 8000`);
-  }
-  // Not a reason to show the default overview: the next change would then be saved over the user's own.
-  if (!res.ok) throw new Error(`The backend returned ${res.status} for ${path}. If it has been running since before it kept overview layouts, restart it.`);
-  return res.json();
-}
+const pathFor = (accountId: string) => `/users/${encodeURIComponent(accountId)}/overview`;
 
 const TILE_ID = /^[a-z-]{1,40}$/;
 
@@ -58,9 +44,9 @@ function cleanLayout(value: unknown): OverviewLayout {
 // The tiles this user has taken off and put on their overview, and how they arranged, sized and locked them.
 // A user who has never changed theirs gets the default overview.
 export async function getOverviewLayout(accountId: string): Promise<OverviewLayout> {
-  return cleanLayout(await overviewRequest(accountId));
+  return cleanLayout(await saved(pathFor(accountId)));
 }
 
 export async function setOverviewLayout(accountId: string, layout: unknown) {
-  await overviewRequest(accountId, cleanLayout(layout));
+  await saved(pathFor(accountId), cleanLayout(layout));
 }

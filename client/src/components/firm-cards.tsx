@@ -1,7 +1,10 @@
 "use client";
 
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import type { Case, CaseUpdate, Injury } from "@/data/types";
+import type { Case, CaseUpdate, Client, Injury, Task } from "@/data/types";
 import { CaseStatusBadge, useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
 import { FirmOnly, Go, Status, billsTotal, day, money, moneyK } from "./ui";
@@ -11,6 +14,23 @@ export function InjuriesList({ injuries, withProvider }: { injuries: Injury[]; w
   return injuries.map((j) => (
     <div className="inj" key={j.name}><div>{j.name}<small>{j.status}{withProvider && j.by ? ` · treated by ${j.by}` : ""}</small></div></div>
   ));
+}
+
+// How to reach the client, as lines of a .kv list: the details they keep up to
+// date themselves. The firm and the client's providers both see them.
+export function ContactLines({ of: c, full }: { of: Client; full?: boolean }) {
+  return (
+    <>
+      {c.phone && <><Icon name="phone" /><span>{c.phone}</span></>}
+      {c.email && <><Icon name="mail" /><span>{c.email}</span></>}
+      {c.bestTime && <><Icon name="clock" /><span>Best time: {c.bestTime}</span></>}
+      {full && <>
+        {c.address && <><Icon name="pin" /><span>{c.address}</span></>}
+        {c.language && <><Icon name="msg" /><span>Speaks {c.language}</span></>}
+        {c.occupation && <><Icon name="user" /><span>{c.occupation}</span></>}
+      </>}
+    </>
+  );
 }
 
 // The money figures this case actually has, smallest first. Clio holds no
@@ -138,16 +158,7 @@ export function CardClient({ full }: { full?: boolean }) {
     <div className="card">
       <div className="hd"><h3>Client</h3>{c.updated && <span className="tag shared" title="The client changed their own details"><Icon name="user" sm />Updated by client {day(c.updated, false)}</span>}{!full && <Go to="client">Full profile</Go>}</div>
       <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>{[c.age != null && `Age ${c.age}`, c.dob && `born ${day(c.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
-      <div className="kv">
-        {c.phone && <><Icon name="phone" /><span>{c.phone}</span></>}
-        {c.email && <><Icon name="mail" /><span>{c.email}</span></>}
-        {c.bestTime && <><Icon name="clock" /><span>Best time: {c.bestTime}</span></>}
-        {full && <>
-          {c.address && <><Icon name="pin" /><span>{c.address}</span></>}
-          {c.language && <><Icon name="msg" /><span>Speaks {c.language}</span></>}
-          {c.occupation && <><Icon name="user" /><span>{c.occupation}</span></>}
-        </>}
-      </div>
+      <div className="kv"><ContactLines of={c} full={full} /></div>
       <div className="sect">Incident · {incident.date}</div>
       <p style={{ fontSize: 13.5 }}>{incident.summary}{full && incident.location && <> <span className="ink2">{incident.location}.</span></>}</p>
       <div className="sect">Injuries</div>
@@ -195,16 +206,47 @@ export function CardCaseFacts() {
 export function CardTasks({ limit }: { limit?: number }) {
   const { tasks } = useFirmCase();
   const list = limit ? tasks.slice(0, limit) : tasks;
+  // Each row links to the To-do page with itself as ?item=<id>, and the page shows that one in full.
+  const item = useSearchParams().get("item");
+  const opened = useRef<HTMLDivElement>(null);
+  // Arriving from another view, bring it into view once the shell has put the page back at its top.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => opened.current?.scrollIntoView({ block: "nearest" }));
+    return () => cancelAnimationFrame(frame);
+  }, [item]);
   return (
     <div className="card">
       <div className="hd"><h3>Needed on this case</h3>{limit ? <Go to="todo">All to-dos</Go> : null}</div>
       {!list.length && <div className="empty">Nothing open.</div>}
-      {list.map((t) => (
-        <div className="row r-task" key={t.title}>
-          <Icon name="task" /><div><b>{t.title}</b><small>{t.who}</small></div>
-          {t.urgent ? <Status kind="warn" label={t.due} /> : <span className="st"><Icon name="cal" sm />{t.due}</span>}
-        </div>
-      ))}
+      {list.map((t) => {
+        const open = !limit && String(t.id) === item;
+        return (
+          <div className={open ? "row r-task open" : "row r-task"} key={t.id} ref={open ? opened : undefined}>
+            {/* The title is the link, and covers the whole row. On the one that is open, it closes it. */}
+            <Icon name="task" /><div><Link href={open ? "/todo" : `/todo?item=${t.id}`} draggable={false} aria-expanded={limit ? undefined : open}><b>{t.title}</b></Link><small>{t.who}</small></div>
+            {t.urgent ? <Status kind="warn" label={t.due} /> : <span className="st"><Icon name="cal" sm />{t.due}</span>}
+            {open && <TaskDetail task={t} />}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// A to-do in full, under its row on the To-do page: what Clio's task says is
+// needed and why, how long is left and the provider it is waiting on.
+function TaskDetail({ task: t }: { task: Task }) {
+  const { openMessage } = useApp();
+  const { providers } = useFirmCase();
+  // A to-do that is waiting on a provider names them in its title.
+  const provider = providers.find((p) => t.title.toLowerCase().includes(p.name.toLowerCase()));
+  const d = t.daysLeft;
+  const left = d == null ? null : d < 0 ? `${-d} day${d === -1 ? "" : "s"} overdue` : d === 0 ? "Due today" : `${d} day${d === 1 ? "" : "s"} left`;
+  return (
+    <div className="task-detail">
+      {t.detail && <p>{t.detail}</p>}
+      <small>{[left, provider && `Waiting on ${provider.name}, ${provider.contact}`].filter(Boolean).join(" · ")}</small>
+      {provider && <button className="btn ghost sm" onClick={() => openMessage(provider.name)}><Icon name="msg" />Message {provider.name.split(" ")[0]}</button>}
     </div>
   );
 }
