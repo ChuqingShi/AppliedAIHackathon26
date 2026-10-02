@@ -3,6 +3,20 @@ CaseBoard frontend shows (see client/src/data/case.ts for the shape).
 
 Everything is read from SQLite; nothing here calls Clio. Fields Clio does not
 hold come back as null and the frontend hides them rather than guessing.
+
+Where each part of the record comes from in Clio:
+  client, incident     the matter's client contact and its custom fields
+  providers, bills     relationships described as medical, with amounts from
+                       the latest "Specials tally" note (Clio has no bill field)
+  financials           custom fields: Estimated Case Value, Policy Limits, ...
+  stages               the matter stage, dated from notes and document folders
+  to-do, deadline      open tasks; the matter's statute of limitations task
+  documents            synced documents, named after their file
+  updates              notes (firm only) and communications (shared with a
+                       provider only when that provider was a party to them)
+
+Much of this reads structure out of free text, so it is tuned to how this
+firm writes its notes. Each heuristic is commented where it happens.
 """
 import html
 import json
@@ -12,8 +26,8 @@ from datetime import date
 
 from db import connect
 
-FIRM_NAME = os.getenv("FIRM_NAME", "Law firm")
-FEE_SHARE = 1 / 3
+FIRM_NAME = os.getenv("FIRM_NAME", "Law firm")  # not in Clio's matter data
+FEE_SHARE = 1 / 3  # standard contingency fee, used for the settlement breakdown
 
 # The personal-injury pipeline shown as the progress bar. Each stage is dated
 # by the first note whose subject matches its pattern (or by a document folder).
@@ -27,7 +41,10 @@ STAGES = [
     ("Settlement", None),
     ("Providers paid", None),
 ]
+# A relationship whose description matches this is a medical provider.
 MEDICAL = re.compile(r"medical provider|treating|hospital|surgeon", re.I)
+# Words too common in provider names to tell providers apart when matching a
+# line of the bills note to a provider (see tokens()).
 GENERIC = {
     "medical", "provider", "providers", "services", "center", "offices", "office", "physical", "therapy",
     "associates", "hospital", "treating", "orthopaedic", "orthopedic", "surgical", "radiology", "medicine",
@@ -41,6 +58,7 @@ DAYS = "Mon Tue Wed Thu Fri Sat Sun".split()
 # ---- small helpers ----
 
 def _d(s) -> date | None:
+    """Clio date or datetime string -> date (None if missing or malformed)."""
     if not s:
         return None
     try:
@@ -50,6 +68,8 @@ def _d(s) -> date | None:
 
 
 def fmt(s, weekday=False) -> str:
+    """Display date: "Sep 22, 2026", or "Tue, Sep 22, 2026" with weekday=True.
+    The year is always shown because this matter spans 2023-2026."""
     d = _d(s)
     if not d:
         return ""
@@ -58,24 +78,30 @@ def fmt(s, weekday=False) -> str:
 
 
 def initials(name: str) -> str:
+    """ "Justin Sapini" -> "JS", for the avatar circles."""
     parts = [p for p in re.split(r"\s+", name or "") if p and p[0].isalpha()]
     return ((parts[0][0] + parts[-1][0]) if len(parts) > 1 else (parts[0][:2] if parts else "?")).upper()
 
 
 def slug(name: str) -> str:
+    """A provider's id in URLs and accounts: "Peter C. Kwan" -> "peter-c-kwan"."""
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
 
 def money_in(text) -> float | None:
+    """The first dollar amount in a piece of text: "Medicaid lien, $22,180.00" -> 22180.0."""
     m = re.search(r"\$([\d,]+(?:\.\d+)?)", text or "")
     return float(m.group(1).replace(",", "")) if m else None
 
 
 def tokens(text: str) -> set[str]:
+    """The distinctive words in a name, for fuzzy matching: "Hudson Valley Radiology
+    Associates" -> {"hudson", "valley"}. Short and GENERIC words are dropped."""
     return {w.lower() for w in re.findall(r"[A-Za-z][A-Za-z\-]{3,}", text or "")} - GENERIC
 
 
 def first_sentence(text: str) -> str:
+    """Keeps the cards short: most Clio fields lead with the point."""
     return re.split(r"(?<=\.)\s", (text or "").strip(), maxsplit=1)[0]
 
 
@@ -86,6 +112,9 @@ def brief(text: str, limit: int = 200) -> str:
 
 
 def clean_doc_name(name: str) -> str:
+    """A readable title from a file name:
+    "04-medical-records__created__sportscare-physical-therapy-records-2023-06-29.pdf"
+    -> "Sportscare physical therapy records"."""
     base = re.sub(r"\.[a-z0-9]+$", "", name, flags=re.I)
     base = base.split("__")[-1]
     base = re.sub(r"-\d{4}-\d{2}-\d{2}$", "", base).replace("-", " ").strip()
@@ -95,6 +124,7 @@ def clean_doc_name(name: str) -> str:
 # ---- loading ----
 
 def synced_matters() -> list[dict]:
+    """The matters in SQLite, most recently changed first (for GET /cases)."""
     with connect() as conn:
         rows = conn.execute("SELECT data FROM raw_records WHERE kind='matter' ORDER BY changed_at DESC").fetchall()
     return [{k: m.get(k) for k in ("id", "display_number", "description", "status")}
@@ -102,6 +132,8 @@ def synced_matters() -> list[dict]:
 
 
 def _load(matter_id: int | None) -> dict[str, list[dict]]:
+    """Every raw record of one matter, grouped by kind ("note", "task", ...).
+    With no matter_id, the most recently synced matter."""
     with connect() as conn:
         if matter_id is None:
             row = conn.execute("SELECT matter_id FROM raw_records WHERE kind='matter' ORDER BY changed_at DESC LIMIT 1").fetchone()
@@ -120,6 +152,8 @@ def _load(matter_id: int | None) -> dict[str, list[dict]]:
 # ---- the digest ----
 
 def build_case(matter_id: int | None = None) -> dict:
+    """The full case record the law firm sees (GET /case). Its shape matches the
+    Case type in client/src/data/types.ts; keep the two in step."""
     raw = _load(matter_id)
     today = date.today()
     m = raw["matter"][0]
@@ -132,6 +166,7 @@ def build_case(matter_id: int | None = None) -> dict:
     docs = raw.get("document", [])
     acts = raw.get("activity", [])
 
+    # The first related contact whose relationship description matches, e.g. "Adverse party".
     def rel(pattern):
         return next((r["contact"]["name"] for r in rels if re.search(pattern, r.get("description") or "", re.I)), None)
 
@@ -153,10 +188,12 @@ def build_case(matter_id: int | None = None) -> dict:
         "occupation": ", ".join(first_sentence(re.sub(r"^\$[\d,.]+ claimed to date\.\s*", "", cf.get("Wage Loss Claimed") or "")).split(", ")[:2]) or None,
     }
 
-    # incident and injuries
+    # incident and injuries. The matter description reads
+    # "Sapini, Justin — MVA (Cedar St & Garden St, ...)": the part after the dash is the type.
     desc = m.get("description") or ""
     mtype = re.search(r"—\s*([^()]+?)\s*(\(|$)", desc)
     summary = cf.get("Case Summary") or ""
+    # "Case Summary" is "<what happened>. <injuries>.": split it in two.
     injury_text = summary.split(". ", 1)[1] if ". " in summary else summary
     incident = {
         "date": fmt(cf.get("Date of Incident")),
@@ -166,7 +203,13 @@ def build_case(matter_id: int | None = None) -> dict:
     }
     injuries = [{"name": injury_text.rstrip("."), "status": first_sentence(cf.get("Treatment Status") or ""), "by": ""}] if injury_text else []
 
-    # providers: medical relationships, billed amounts from the latest "specials tally" note
+    # providers: medical relationships, billed amounts from the latest "specials tally" note.
+    # Clio has no field for what each provider billed; the firm keeps a running
+    # tally in a note, one bullet per provider:
+    #   - Physiatry, Dr. Abramov: $1,450.00
+    # Each bullet is matched to the provider whose name (or description) shares
+    # the most distinctive words with it. The amounts add up to the "Medical
+    # Specials To Date" custom field, which is a useful check.
     medical = [r for r in rels if MEDICAL.search(r.get("description") or "")]
     tally = next((n for n in reversed(notes) if re.search(r"specials tally", n.get("subject") or "", re.I) and "- " in (n.get("detail") or "")), None)
     bills = [ln[2:] for ln in html.unescape((tally or {}).get("detail") or "").splitlines() if ln.startswith("- ")]
@@ -189,11 +232,14 @@ def build_case(matter_id: int | None = None) -> dict:
     for r in medical:
         cid, name = r["contact"]["id"], r["contact"]["name"]
         if cid not in billed and contacts.get(cid, {}).get("type") == "Person":
-            continue  # a clinician at a practice that is already listed
+            continue  # a clinician at a practice that is already listed (e.g. a surgeon at McCulloch)
         pid = slug(name)
         key = tokens(name)
+        # this provider's files in the medical folders, matched on the same distinctive words
         mine = [d for d in med_docs if key & tokens(d["name"].replace("-", " "))]
         has_records = any("record" in d["name"] for d in mine)
+        # open tasks naming the provider ("By medical provider: <name> - ...") are what
+        # the firm is waiting on from them; they show as "Needed from you" on their dashboard
         asks = [t for t in pending_tasks if name.lower() in (t.get("name") or "").lower()]
         # a named clinician in the description, e.g. "(Kevin M. Haggerty, D.C.)"
         person = re.search(r"\(([A-Z][a-z]+(?: [A-Z]\.)? [A-Z][a-z]+), (?:M\.D\.|D\.C\.|D\.O\.)", r.get("description") or "")
@@ -201,6 +247,7 @@ def build_case(matter_id: int | None = None) -> dict:
         providers.append({"id": pid, "name": name, "billed": billed.get(cid, 0),
                           "records": "good" if has_records else "warn",
                           "bill": "warn" if asks or cid not in billed else "good", "contact": contact})
+        # "patient since": the first service date on the provider's medical-charges entry
         services = next((re.search(r"services (\d{4}-\d{2}-\d{2})", a.get("note") or "") for a in acts
                          if name.split(",")[0].lower() in (a.get("note") or "").lower()), None)
         provider_files[pid] = {
@@ -214,14 +261,18 @@ def build_case(matter_id: int | None = None) -> dict:
     bills_total = sum(p["billed"] for p in providers)
 
     # financials (Clio has no structured offer/demand, so those stay null)
+    # Case costs are the firm's own expense entries; the medical-charge entries are
+    # the providers' bills, already counted above.
     expenses = sum(a.get("total") or 0 for a in acts if a.get("total") and not re.search(r"medical treatment", a.get("note") or "", re.I))
+    # The rationale's last paragraph is the firm's bottom line ("The case is worth more
+    # than the coverage..."), shown as the callout under the financials.
     rationale = (cf.get("Case Value Rationale") or "").split("\n")
     financials = {
         "offer": None, "offerDate": None, "demand": None, "demandDate": None,
         "targetLow": None, "targetHigh": None, "counter": None, "counterDue": None,
         "estimatedValue": cf.get("Estimated Case Value"),
-        "policyLimit": money_in(cf.get("Policy Limits")),
-        "liens": money_in(cf.get("Health Insurance or Lien Holder")),
+        "policyLimit": money_in(cf.get("Policy Limits")),  # the first line: the defendant's per-person limit
+        "liens": money_in(cf.get("Health Insurance or Lien Holder")),  # what comes off the recovery
         "costs": expenses, "feeShare": FEE_SHARE,
         "note": (rationale[-1] if len(rationale) > 1 else rationale[0]) or None,
     }
@@ -234,13 +285,15 @@ def build_case(matter_id: int | None = None) -> dict:
         deadline = {"label": "Statute of limitations", "date": fmt(sol["due_at"]),
                     "daysLeft": (_d(sol["due_at"]) - today).days, "met": sol.get("status") == "complete"}
 
-    # stages
+    # stages: where Clio's matter stage ("Litigation") sits in the STAGES pipeline.
+    # Matching on the first five letters tolerates small naming differences.
     names = [s[0] for s in STAGES]
     current = (m.get("matter_stage") or {}).get("name") or ""
     idx = next((i for i, n in enumerate(names) if n.lower().startswith(current.lower()[:5])), None) if current else None
     if idx is None:
         idx = 0
     pleadings = sorted(d.get("received_at") or "" for d in docs if re.search(r"pleading", (d.get("parent") or {}).get("name") or "", re.I))
+    # Date each stage reached so far; later stages read "Upcoming".
     stages = []
     for i, (name, pat) in enumerate(STAGES):
         when = m.get("open_date") if i == 0 else (pleadings[0] if name == "Litigation" and pleadings else None)
@@ -283,7 +336,9 @@ def build_case(matter_id: int | None = None) -> dict:
         updates.append((c.get("date") or "", u))
     updates = [u for _, u in sorted(updates, key=lambda x: x[0], reverse=True)]
 
-    # team: everyone assigned work or writing as a firm user
+    # team: everyone assigned work or writing as a firm user. The first is the
+    # providers' "main contact". Clio's records here don't say who is the lead
+    # attorney, so everyone is listed as "Legal team".
     team_names = []
     for t in tasks:
         n = (t.get("assignee") or {}).get("name")
@@ -318,6 +373,7 @@ def build_case(matter_id: int | None = None) -> dict:
 
 
 def _request(t: dict, provider: str, today: date) -> dict:
+    """An open task, worded for the provider it is waiting on."""
     due = _d(t.get("due_at"))
     title = re.sub(rf"^By medical provider:\s*{re.escape(provider)}\s*-\s*", "", t.get("name") or "")
     return {"title": title, "detail": first_sentence(t.get("description") or ""),

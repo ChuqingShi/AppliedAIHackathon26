@@ -1,7 +1,10 @@
-"""FastAPI app: Clio OAuth login + sync trigger.
+"""FastAPI app: Clio OAuth login, sync trigger, and the API the dashboard reads.
 
-Run:  uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+  Clio (read-only)  --sync.py-->  SQLite (sapini.db)  --case_view.py-->  GET /case  -->  client/
+
+Run:  uvicorn main:app --host 127.0.0.1 --port 8000
 Then: open http://127.0.0.1:8000/login   (use 127.0.0.1, not localhost)
+(--reload works too, but on Windows it can hang and leave the port taken.)
 """
 import os
 import secrets
@@ -15,11 +18,15 @@ import sync as sync_mod
 from db import connect
 
 app = FastAPI(title="Sapini case dashboard API")
+# OAuth "state" values we handed out; /callback only accepts one of these (CSRF guard).
 _states: set[str] = set()
 
 
+# ---- Clio sign-in and sync ----
+
 @app.get("/login")
 def login():
+    """Send the browser to Clio to approve this app."""
     state = secrets.token_urlsafe(16)
     _states.add(state)
     return RedirectResponse(clio.authorize_url(state))
@@ -27,6 +34,7 @@ def login():
 
 @app.get("/callback")
 def callback(request: Request, code: str | None = None, state: str | None = None, error: str | None = None):
+    """Clio redirects here after approval; trade the code for tokens (stored in SQLite)."""
     if error:
         raise HTTPException(400, f"Clio returned error: {error}")
     if not code or state not in _states:
@@ -60,6 +68,8 @@ def run_sync(matter_id: int | None = None, query: str | None = None, all: bool =
     except LookupError as e:
         raise HTTPException(404, str(e))
 
+
+# ---- What the dashboard reads (from SQLite only; these never call Clio) ----
 
 @app.get("/cases")
 def cases():
