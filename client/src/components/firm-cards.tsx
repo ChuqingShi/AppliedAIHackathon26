@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import type { Case, CaseUpdate, Client, Injury, Task } from "@/data/types";
+import type { Case, CaseUpdate, Client, Injury, Inquiry, Task } from "@/data/types";
 import { CaseStatusBadge, useApp, useFirmCase } from "./AppShell";
+import { newAnswers } from "./format";
 import { Icon } from "./Icon";
 import { FirmOnly, Go, PhotoIdThumb, Status, billsTotal, day, money, moneyK } from "./ui";
 
@@ -310,16 +311,19 @@ export function CardUpdates({ limit }: { limit?: number }) {
 
 export interface Alert { text: string; to: string }
 
-// What needs someone's attention today, worst first: overdue to-dos, to-dos due
+// What needs someone's attention today: answers that have come in to the
+// questions the firm sent out, then, worst first, overdue to-dos, to-dos due
 // this week, providers we're still waiting on, and a statute of limitations that
 // is close, passed or missing. Each links to the page where it gets dealt with.
-export function attention(c: Case): Alert[] {
+export function attention(c: Case, inquiries: Inquiry[]): Alert[] {
+  const answers = newAnswers(inquiries).length;
   const overdue = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft < 0);
   const soon = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft >= 0 && t.daysLeft <= 7);
   const waiting = c.providers.filter((p) => p.bill === "warn" || p.records === "warn");
   const d = c.deadline;
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return [
+    answers ? { text: `${plural(answers, "new answer", "new answers")} to your questions`, to: "questions" } : null,
     overdue.length ? { text: `${plural(overdue.length, "to-do", "to-dos")} overdue`, to: "todo" } : null,
     soon.length ? { text: `${plural(soon.length, "to-do", "to-dos")} due this week`, to: "todo" } : null,
     waiting.length ? { text: `Waiting on ${plural(waiting.length, "provider", "providers")}`, to: "providers" } : null,
@@ -332,7 +336,7 @@ export function attention(c: Case): Alert[] {
 
 export function CardAttention() {
   const c = useFirmCase();
-  const alerts = attention(c);
+  const alerts = attention(c, useApp().dashboard.inquiries);
   // the next to-do that isn't overdue yet: what to work on after the alerts
   const next = c.tasks.find((t) => t.daysLeft == null || t.daysLeft >= 0);
   return (

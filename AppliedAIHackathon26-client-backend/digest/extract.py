@@ -4,6 +4,7 @@ Only documents with doc_files.pages IS NULL are processed. sync.py writes doc_fi
 INSERT OR REPLACE whenever it (re)downloads a file, which resets `pages` to NULL, so a
 changed document is picked up again automatically.
 """
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -14,7 +15,10 @@ MIN_TEXT_CHARS = 100  # fewer non-space chars than this → treat the page as a 
 OCR_DPI = 300
 
 
-def ocr_page(page: pymupdf.Page) -> str:
+def ocr_page(page: pymupdf.Page) -> str | None:
+    """The page's text as tesseract reads it, or None where tesseract isn't installed."""
+    if not shutil.which("tesseract"):
+        return None
     pix = page.get_pixmap(dpi=OCR_DPI, colorspace=pymupdf.csGRAY)
     with tempfile.TemporaryDirectory() as tmp:
         png = Path(tmp) / "page.png"
@@ -30,15 +34,18 @@ def extract_pdf(path: Path) -> list[dict]:
             text = page.get_text(sort=True)  # sorted: table rows stay on one line
             method = "text_layer"
             if len("".join(text.split())) < MIN_TEXT_CHARS:
-                text = ocr_page(page)
-                method = "ocr"
+                read = ocr_page(page)
+                # Without tesseract a scan stays 'pending' rather than stopping the run.
+                text, method = (read, "ocr") if read is not None else ("", "pending")
             pages.append({"page": i, "method": method, "text": text})
     return pages
 
 
 def extract_pending(conn) -> int:
     """Fill doc_pages for every downloaded document that has no pages yet. Returns how many."""
-    pending = conn.execute("SELECT doc_id, path FROM doc_files WHERE pages IS NULL").fetchall()
+    # Scans left 'pending' are read again once tesseract is installed (then run with --force).
+    retry = " OR doc_id IN (SELECT doc_id FROM doc_pages WHERE method='pending')" if shutil.which("tesseract") else ""
+    pending = conn.execute("SELECT doc_id, path FROM doc_files WHERE pages IS NULL" + retry).fetchall()
     for row in pending:
         path = Path(row["path"])
         pages = extract_pdf(path) if path.suffix.lower() == ".pdf" and path.is_file() else []
@@ -48,5 +55,6 @@ def extract_pending(conn) -> int:
         conn.execute("UPDATE doc_files SET pages=? WHERE doc_id=?", (len(pages), row["doc_id"]))
         conn.commit()
         ocr = sum(p["method"] == "ocr" for p in pages)
-        print(f"  {len(pages):4d} pages ({ocr} OCR)  {path.name}")
+        unread = sum(p["method"] == "pending" for p in pages)
+        print(f"  {len(pages):4d} pages ({ocr} OCR{f', {unread} scans unread: install tesseract' if unread else ''})  {path.name}")
     return len(pending)

@@ -20,6 +20,7 @@ import clio
 import sync as sync_mod
 from db import connect
 from digest import queries as doc_facts
+from digest import search as doc_search
 
 app = FastAPI(title="Sapini case dashboard API")
 # OAuth "state" values we handed out; /callback only accepts one of these (CSRF guard).
@@ -175,6 +176,15 @@ def case_timeline(matter_id: int | None = None):
         raise HTTPException(404, str(e))
 
 
+@app.get("/case/search")
+def case_search(q: str, matter_id: int | None = None, limit: int = 8, full: bool = False):
+    """The document pages that best match a question, each with its document, page and the matching passage."""
+    try:
+        return doc_search.search(q, matter_id, limit=max(1, min(limit, 20)), full=full)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
 @app.get("/case/provider")
 def provider_case(matter_id: int | None = None, provider_id: str | None = None):
     """The trimmed record one medical provider may see. Trimming happens here, never in the browser."""
@@ -241,3 +251,68 @@ def save_client_details(case_id: str, details: dict = Body(...)):
             (case_id, data, datetime.now(timezone.utc).isoformat()),
         )
     return details
+
+
+# ---- Questions the firm sends to a provider or the client, and their answers (SQLite only, never Clio) ----
+
+# Far more than a message needs.
+MAX_INQUIRY_BYTES = 20_000
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _inquiry(row) -> dict:
+    """An inquiry as the dashboard reads it (the Inquiry type in client/src/data/types.ts)."""
+    return {"id": row["id"], "asked": row["asked"], "to": {"id": row["to_id"], "name": row["to_name"]},
+            "from": row["from_name"], "message": row["message"], "sentAt": row["sent_at"], "seenAt": row["seen_at"],
+            "reply": row["reply"], "repliedBy": row["replied_by"], "repliedAt": row["replied_at"],
+            "closedAt": row["closed_at"]}
+
+
+@app.get("/cases/{case_id:path}/inquiries")
+def inquiries(case_id: str):
+    """Every question sent on this case, newest first. The dashboard hands each role only its own."""
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM inquiries WHERE case_id=? ORDER BY id DESC", (case_id,)).fetchall()
+    return [_inquiry(r) for r in rows]
+
+
+@app.post("/cases/{case_id:path}/inquiries")
+def send_inquiry(case_id: str, inquiry: dict = Body(...)):
+    """Send a question: {asked, to: {id, name}, from, message}. The dashboard checks who may send what to whom; this only stores it."""
+    if len(json.dumps(inquiry)) > MAX_INQUIRY_BYTES:
+        raise HTTPException(413, "That message is too large to send")
+    try:
+        values = (case_id, inquiry.get("asked"), inquiry["to"]["id"], inquiry["to"]["name"], inquiry["from"],
+                  inquiry["message"], _now())
+    except (KeyError, TypeError):
+        raise HTTPException(422, "An inquiry needs to: {id, name}, from and message")
+    with connect() as conn:
+        cur = conn.execute(
+            "INSERT INTO inquiries(case_id, asked, to_id, to_name, from_name, message, sent_at) VALUES (?,?,?,?,?,?,?)",
+            values)
+        return _inquiry(conn.execute("SELECT * FROM inquiries WHERE id=?", (cur.lastrowid,)).fetchone())
+
+
+@app.patch("/inquiries/{inquiry_id}")
+def update_inquiry(inquiry_id: int, change: dict = Body(...)):
+    """Move a question along: {seen: true} once its recipient has read it, {reply, repliedBy} when they
+    answer, {closed: true} when the firm is done with it. Each is stamped once, with the time it happened."""
+    if len(json.dumps(change)) > MAX_INQUIRY_BYTES:
+        raise HTTPException(413, "That reply is too large to send")
+    now = _now()
+    with connect() as conn:
+        if change.get("seen"):
+            conn.execute("UPDATE inquiries SET seen_at=? WHERE id=? AND seen_at IS NULL", (now, inquiry_id))
+        if change.get("reply"):
+            conn.execute(
+                "UPDATE inquiries SET reply=?, replied_by=?, replied_at=?, seen_at=coalesce(seen_at, ?) WHERE id=?",
+                (change["reply"], change.get("repliedBy"), now, now, inquiry_id))
+        if change.get("closed"):
+            conn.execute("UPDATE inquiries SET closed_at=? WHERE id=? AND closed_at IS NULL", (now, inquiry_id))
+        row = conn.execute("SELECT * FROM inquiries WHERE id=?", (inquiry_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "No such inquiry")
+    return _inquiry(row)

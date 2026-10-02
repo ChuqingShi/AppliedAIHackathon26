@@ -10,6 +10,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { CaseStatusBadge, useApp, useFirmCase, useProviderCase } from "./AppShell";
 import { attention } from "./firm-cards";
+import { unanswered } from "./format";
 import { Icon } from "./Icon";
 import { Go, money } from "./ui";
 
@@ -60,7 +61,7 @@ export function Briefing() {
   const { dashboard } = useApp();
   const c = useFirmCase();
   // The alerts are the "Needs attention" strip's, so the two always agree.
-  const alerts = attention(c);
+  const alerts = attention(c, dashboard.inquiries);
   const due = c.tasks.slice(0, 3);
   const recent = c.updates.slice(0, 3);
   const d = c.deadline;
@@ -107,6 +108,7 @@ export function Briefing() {
 
 export function ProviderBriefing() {
   const p = useProviderCase();
+  const questions = unanswered(useApp().dashboard.inquiries);
   const stage = p.stages[p.stageIndex];
   const nextStage = p.stages[p.stageIndex + 1];
   const recent = p.updates.slice(0, 3);
@@ -116,11 +118,17 @@ export function ProviderBriefing() {
     <BriefingDialog
       title="Welcome back"
       subtitle={`${p.provider.name} · ${p.patient.name}'s case`}
-      actions={<Go to="records" className="btn ghost">Records &amp; bills</Go>}
+      actions={<>{questions.length > 0 && <Go to="questions" className="btn ghost">Answer questions</Go>}<Go to="records" className="btn ghost">Records &amp; bills</Go></>}
     >
       <section>
         <h4>Needed from you</h4>
-        {p.requests.length
+        {questions.map((q) => (
+          <div className="brief-row" key={q.id}>
+            <span><b>Question from {q.from}</b><small className="ink2"> · {q.message.replace(/\s+/g, " ").slice(0, 70)}…</small></span>
+            <span className="late">To answer</span>
+          </div>
+        ))}
+        {p.requests.length || questions.length
           ? p.requests.map((r) => (
               <div className="brief-row" key={r.title}>
                 <span><b>{r.title}</b>{r.detail && <small className="ink2"> · {r.detail}</small>}</span>

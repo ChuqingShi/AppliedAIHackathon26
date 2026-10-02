@@ -68,6 +68,24 @@ CREATE TABLE IF NOT EXISTS client_details (
     details TEXT NOT NULL,          -- JSON as the dashboard sent it
     updated_at TEXT NOT NULL
 );
+
+-- Questions the firm sends to a medical provider or the client when the case doesn't
+-- hold the answer, and how far each has got: sent, seen, answered, closed by the firm.
+CREATE TABLE IF NOT EXISTS inquiries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id TEXT NOT NULL,          -- the case's id on the dashboard (the matter's display number)
+    asked TEXT,                     -- what was typed in the search box, if that is where it came from
+    to_id TEXT NOT NULL,            -- a provider's id on the dashboard, or 'client'
+    to_name TEXT NOT NULL,
+    from_name TEXT NOT NULL,
+    message TEXT NOT NULL,
+    sent_at TEXT NOT NULL,
+    seen_at TEXT,
+    reply TEXT,
+    replied_by TEXT,
+    replied_at TEXT,
+    closed_at TEXT
+);
 """
 
 
