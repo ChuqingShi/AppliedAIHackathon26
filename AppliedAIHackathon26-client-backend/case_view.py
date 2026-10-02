@@ -309,6 +309,8 @@ def build_case(matter_id: int | None = None) -> dict:
         title = re.sub(r"^By medical provider:\s*", "", t.get("name") or "")
         todo.append({"title": title, "who": (t.get("assignee") or {}).get("name", ""),
                      "due": fmt(due, weekday=True) if due else "No due date",
+                     # negative once overdue; lets the overview tell "overdue" from "due soon"
+                     "daysLeft": (due - today).days if due else None,
                      "urgent": bool(due and (due - today).days <= 7)})
 
     # documents, newest first; the four most recent are "important"

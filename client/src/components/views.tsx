@@ -5,22 +5,31 @@ import type { Role } from "@/data/nav";
 import { useApp } from "./AppShell";
 import { Overview, SectionTile } from "./Overview";
 import type { Tile } from "./Overview";
+import { Briefing } from "./Briefing";
 import { CardMyDetails, CardMyIncident } from "./client-cards";
 import {
-  CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
-  CardFinancials, CardProviderBills, CardTasks, CardUpdates,
+  CardAttention, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
+  CardFinancials, CardMoney, CardProviderBills, CardStatus, CardTasks, CardUpdates,
 } from "./firm-cards";
 import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, CardTeam } from "./provider-cards";
 
 // Every tile the firm's overview can show. Those with a `row` are there by
 // default; the rest are added from their section. A new tile is one entry here
 // (or in P, for providers) plus a <SectionTile> wherever it should be offered.
+//
+// The default overview reads top to bottom as: what needs action today (alone in
+// its row, so it spans the page), where the case is and the money in brief, then
+// the to-dos and latest updates. The full financials, client and documents
+// cards live on their own pages and can be added back from there.
 const T = {
-  financials: { id: "financials", title: "Case financials", row: 0, size: "l", card: <CardFinancials /> },
-  client: { id: "client", title: "Client", row: 0, card: <CardClient /> },
-  tasks: { id: "tasks", title: "Needed on this case", row: 1, card: <CardTasks limit={4} /> },
-  documents: { id: "documents", title: "Important documents", row: 1, card: <CardDocs /> },
-  updates: { id: "updates", title: "Latest updates", row: 1, card: <CardUpdates limit={3} /> },
+  attention: { id: "attention", title: "Needs attention", row: 0, card: <CardAttention /> },
+  status: { id: "status", title: "Where the case is", row: 1, card: <CardStatus /> },
+  money: { id: "money", title: "Money at a glance", row: 1, card: <CardMoney /> },
+  tasks: { id: "tasks", title: "Needed on this case", row: 2, card: <CardTasks limit={4} /> },
+  updates: { id: "updates", title: "Latest updates", row: 2, card: <CardUpdates limit={3} /> },
+  financials: { id: "financials", title: "Case financials", size: "l", card: <CardFinancials /> },
+  client: { id: "client", title: "Client", card: <CardClient /> },
+  documents: { id: "documents", title: "Important documents", card: <CardDocs /> },
   providerBills: { id: "provider-bills", title: "Medical bills by provider", size: "m", card: <CardProviderBills /> },
   breakdown: { id: "breakdown", title: "Settlement breakdown", card: <CardBreakdown /> },
   caseFacts: { id: "case-facts", title: "Case details", card: <CardCaseFacts /> },
@@ -40,7 +49,8 @@ const P = {
 // One entry per item in NAV (src/data/nav.ts).
 const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
   firm: {
-    overview: () => <Overview tiles={Object.values(T)} />,
+    // The sign-in briefing pops up over the overview (once per sign-in; see components/Briefing.tsx).
+    overview: () => <><Briefing /><Overview tiles={Object.values(T)} /></>,
     financials: () => (
       <>
         <h2>Financials</h2>

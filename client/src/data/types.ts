@@ -10,7 +10,8 @@ export type StatusKind = "good" | "warn";
 export interface Stage { name: string; date: string }
 export interface Injury { name: string; status: string; by: string }
 export interface Provider { id: string; name: string; billed: number; records: StatusKind; bill: StatusKind; contact: string }
-export interface Task { title: string; who: string; due: string; urgent?: boolean }
+// `daysLeft` is negative once the task is overdue, and null when it has no due date.
+export interface Task { title: string; who: string; due: string; daysLeft?: number | null; urgent?: boolean }
 export interface CaseDocument { id?: number; name: string; kind: string; date: string; important?: boolean; pending?: boolean }
 export interface UpdateText { t: string; s: string }
 export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }

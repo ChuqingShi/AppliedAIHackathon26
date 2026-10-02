@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
+import { askAssistant, dismissBriefing, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
 import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
@@ -30,6 +30,9 @@ interface App {
   ask: (question: string) => void;
   toast: (text: string) => void;
   openMessage: (name: string) => void;
+  // The firm's sign-in briefing (components/Briefing.tsx): open until closed once.
+  briefingOpen: boolean;
+  closeBriefing: () => void;
 }
 
 const AppContext = createContext<App | null>(null);
@@ -59,7 +62,7 @@ export function useClientCase(): ClientCase {
   return dashboard.case;
 }
 
-export function AppShell({ dashboard, overview: savedOverview, demoAccounts, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; children: ReactNode }) {
+export function AppShell({ dashboard, overview: savedOverview, demoAccounts, briefing = false, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; briefing?: boolean; children: ReactNode }) {
   const params = useParams<{ view?: string }>();
   const pathname = usePathname();
   const role = dashboard.role;
@@ -117,12 +120,19 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, chi
     setMessageTo(null);
   }
 
+  // Closing the briefing hides it at once and tells the server, so a refresh doesn't reopen it.
+  const [briefingOpen, setBriefingOpen] = useState(briefing);
+  const closeBriefing = useCallback(() => {
+    setBriefingOpen(false);
+    dismissBriefing().catch(() => {});
+  }, []);
+
   const main = useRef<HTMLElement>(null);
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
-    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast],
+    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, closeBriefing }),
+    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast, briefingOpen, closeBriefing],
   );
 
   return (

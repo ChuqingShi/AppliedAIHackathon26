@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { findAccount } from "@/data/accounts";
 import { answer } from "@/lib/assistant";
+import { clearBriefing, queueBriefing } from "@/lib/briefing";
 import { getDashboard } from "@/lib/dashboard";
 import { DETAILS } from "@/data/details";
 import type { DetailErrors, OverviewLayout } from "@/data/types";
@@ -15,7 +16,15 @@ export async function login(formData: FormData) {
   const account = await findAccount(formData.get("account"));
   if (!account) redirect("/login");
   await createSession(account.id);
+  // The firm gets a briefing of what matters over its overview, once per sign-in.
+  if (account.role === "firm") await queueBriefing();
   redirect("/overview");
+}
+
+// Closes the sign-in briefing for good (until the next sign-in).
+export async function dismissBriefing() {
+  await requireSession();
+  await clearBriefing();
 }
 
 export async function logout() {

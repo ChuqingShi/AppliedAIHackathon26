@@ -262,3 +262,80 @@ export function CardUpdates({ limit }: { limit?: number }) {
     </div>
   );
 }
+
+// ---- The overview's first rows: what needs action, where the case is, the money ----
+
+export interface Alert { text: string; to: string }
+
+// What needs someone's attention today, worst first: overdue to-dos, to-dos due
+// this week, providers we're still waiting on, and a statute of limitations that
+// is close, passed or missing. Each links to the page where it gets dealt with.
+export function attention(c: Case): Alert[] {
+  const overdue = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft < 0);
+  const soon = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft >= 0 && t.daysLeft <= 7);
+  const waiting = c.providers.filter((p) => p.bill === "warn" || p.records === "warn");
+  const d = c.deadline;
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  return [
+    overdue.length ? { text: `${plural(overdue.length, "to-do", "to-dos")} overdue`, to: "todo" } : null,
+    soon.length ? { text: `${plural(soon.length, "to-do", "to-dos")} due this week`, to: "todo" } : null,
+    waiting.length ? { text: `Waiting on ${plural(waiting.length, "provider", "providers")}`, to: "providers" } : null,
+    !d ? { text: "No statute of limitations set in Clio", to: "client" }
+      : !d.met && d.daysLeft < 0 ? { text: `Statute of limitations passed ${d.date}`, to: "client" }
+      : !d.met && d.daysLeft <= 180 ? { text: `Statute of limitations in ${d.daysLeft} days`, to: "client" }
+      : null,
+  ].filter((a): a is Alert => a != null);
+}
+
+export function CardAttention() {
+  const c = useFirmCase();
+  const alerts = attention(c);
+  // the next to-do that isn't overdue yet: what to work on after the alerts
+  const next = c.tasks.find((t) => t.daysLeft == null || t.daysLeft >= 0);
+  return (
+    <div className="card attn">
+      <div className="hd"><h3>Needs attention</h3>{next && <span className="next">Next due: <b>{next.title}</b> · {next.due}</span>}</div>
+      <div className="alerts">
+        {alerts.length
+          ? alerts.map((a) => <Go key={a.text} to={a.to} className="alert"><Icon name="bang" sm />{a.text}</Go>)
+          : <span className="alert ok"><Icon name="check" sm />Nothing needs attention right now</span>}
+      </div>
+    </div>
+  );
+}
+
+export function CardStatus() {
+  const c = useFirmCase();
+  const stage = c.stages[c.stageIndex];
+  const nextStage = c.stages[c.stageIndex + 1];
+  const latest = c.updates[0];
+  return (
+    <div className="card">
+      <div className="hd"><h3>Where the case is</h3><Go to="updates">History</Go></div>
+      <p className="lead">In <b>{stage.name.toLowerCase()}</b>{stage.date && stage.date !== "Upcoming" ? <> since {stage.date}</> : null}.</p>
+      <div className="row r-kv"><span>Case</span><span><CaseStatusBadge closed={c.dates.closed} />{c.dates.length && <span className="ink2"> · {c.dates.length}</span>}</span></div>
+      {nextStage && <div className="row r-kv"><span>Next stage</span><b style={{ fontWeight: 500 }}>{nextStage.name}</b></div>}
+      {latest && <div className="row r-kv"><span>Latest</span><span><b style={{ fontWeight: 500 }}>{latest.firm.t}</b> <span className="ink2">· {latest.date}</span></span></div>}
+    </div>
+  );
+}
+
+// The four numbers that matter most, small; the full picture is on Financials.
+export function CardMoney() {
+  const c = useFirmCase();
+  const f = c.financials;
+  const stats = ([
+    ["Case value", f.estimatedValue], ["Policy limit", f.policyLimit],
+    ["Medical bills", billsTotal(c) || null], ["Liens", f.liens],
+  ] as [string, number | null][]).filter(([, v]) => v != null) as [string, number][];
+  return (
+    <div className="card">
+      <div className="hd"><h3>Money at a glance</h3><FirmOnly /><Go to="financials">Details</Go></div>
+      {stats.length
+        ? <div className="stats" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))", marginBottom: 0 }}>
+            {stats.map(([lb, v]) => <div className="stat" key={lb}><div className="lb">{lb}</div><div className="val">{moneyK(v)}</div></div>)}
+          </div>
+        : <div className="empty">No figures in Clio yet.</div>}
+    </div>
+  );
+}
