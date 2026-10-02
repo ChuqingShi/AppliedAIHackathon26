@@ -12,12 +12,13 @@ import type { FormEvent, ReactNode } from "react";
 import { askAssistant, currentAccount, dismissBriefing, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
+import type { Case, ClientCase, Dashboard, OverviewLayout, Passage, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
 import { PhotoIdThumb } from "./ui";
 
-export interface ChatMessage { me?: boolean; text: string }
+// `sources` are the document pages an answer was taken from.
+export interface ChatMessage { me?: boolean; text: string; sources?: Passage[] }
 export interface DemoAccount { id: string; role: Role }
 
 interface App {
@@ -104,7 +105,7 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     setAsking((n) => n + 1);
     try {
       const reply = await askAssistant(q);
-      setChat((log) => [...log, { text: reply }]);
+      setChat((log) => [...log, reply]);
     } catch {
       setChat((log) => [...log, { text: "The assistant couldn't be reached. Try again in a moment." }]);
     } finally {

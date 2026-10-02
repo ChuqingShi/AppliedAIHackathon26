@@ -247,12 +247,21 @@ a { color: inherit; text-decoration: none; }
 .drop .hd h3 { font-size: 13px; font-weight: 600; color: var(--ink2); }
 .drop .hits, .drop .log { max-height: min(50vh, 420px); overflow-y: auto; }
 .drop .hits .empty { padding: 20px 0; font-size: 13.5px; }
+/* the document pages that match come under the other matches, each a link to its page */
+.drop .hits .th { padding-top: 12px; }
+.drop .hits .th:first-child { padding-top: 0; }
+.drop .hits .th + .row { border-top: 0; padding-top: 0; }
 .drop .log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
 .asknow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 11px; margin-bottom: 10px; border-radius: 8px; background: var(--acc-soft); color: var(--acc); font-size: 13px; font-weight: 600; }
 .asknow span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bubble { font-size: 13.5px; line-height: 1.45; padding: 9px 12px; border-radius: 12px; background: var(--plane); max-width: 94%; }
 .bubble.me { background: var(--acc-soft); margin-left: auto; }
 .bubble.wait { color: var(--muted); }
+/* the document pages an answer was taken from */
+.bubble .srcs { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.bubble .srcs a { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); background: #fff; }
+.bubble .srcs a:hover { border-color: var(--acc); color: var(--acc); }
+.bubble .srcs b { min-width: 17px; height: 17px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; background: var(--acc-soft); color: var(--acc); }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); background: #fff; }
 .chips button:hover { border-color: var(--acc); color: var(--acc); }

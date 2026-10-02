@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { findAccount } from "@/data/accounts";
-import { answer } from "@/lib/assistant";
+import { reply } from "@/lib/assistant";
 import { clearBriefing, queueBriefing } from "@/lib/briefing";
 import { getDashboard } from "@/lib/dashboard";
 import { DETAILS } from "@/data/details";
@@ -42,7 +42,7 @@ export async function askAssistant(question: string) {
   const dashboard = await getDashboard();
   // The assistant answers from the full case record, so it is for the firm only.
   if (dashboard.role !== "firm") throw new Error("Forbidden");
-  return answer(dashboard.case, String(question).slice(0, 2000));
+  return reply(dashboard.case, String(question).slice(0, 2000));
 }
 
 // Saves which tiles the signed-in user has removed from and added to their overview, and how they arranged, sized and locked them.

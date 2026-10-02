@@ -19,6 +19,7 @@ import clio
 import sync as sync_mod
 from db import connect
 from digest import queries as doc_facts
+from digest import search as doc_search
 
 app = FastAPI(title="Sapini case dashboard API")
 # OAuth "state" values we handed out; /callback only accepts one of these (CSRF guard).
@@ -192,6 +193,15 @@ def case_timeline(matter_id: int | None = None):
     """Documents ordered by their real date (filing stamp, letter date, visit or statement date)."""
     try:
         return doc_facts.timeline(matter_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/case/search")
+def case_search(q: str, matter_id: int | None = None, limit: int = 8, full: bool = False):
+    """The document pages that best match a question, each with its document, page and the matching passage."""
+    try:
+        return doc_search.search(q, matter_id, limit=max(1, min(limit, 20)), full=full)
     except LookupError as e:
         raise HTTPException(404, str(e))
 

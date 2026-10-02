@@ -14,6 +14,13 @@ export interface Provider { id: string; name: string; billed: number; records: S
 // task is overdue, and null when it has no due date.
 export interface Task { id: number; title: string; who: string; due: string; urgent?: boolean; detail: string | null; daysLeft: number | null }
 export interface CaseDocument { id?: number; name: string; kind: string; date: string; important?: boolean; pending?: boolean }
+// A page of one of the case's documents that matches a search (the backend's
+// /case/search). `snippet` is the matching stretch of the page, with the matched
+// words in **bold** marks.
+export interface Passage { docId: number; name: string; page: number; snippet: string }
+// What the assistant answers: text with **bold** marks, and the pages it took the
+// answer from. Where the text cites one as [1], that is the first of `sources`.
+export interface Reply { text: string; sources: Passage[] }
 export interface UpdateText { t: string; s: string }
 export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }
 export interface TeamMember { name: string; initials: string; role: string; main?: boolean }
