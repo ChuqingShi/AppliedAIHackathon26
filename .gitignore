@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Agent instructions (local only; `next dev` may also re-create them in client/)
+AGENTS.md
+CLAUDE.md

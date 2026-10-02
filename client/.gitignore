@@ -39,7 +39,3 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-
-# re-created by `next dev` when run by a coding agent; the real ones live at the repo root
-/AGENTS.md
-/CLAUDE.md
