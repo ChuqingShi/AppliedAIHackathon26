@@ -87,12 +87,21 @@ a { color: inherit; text-decoration: none; }
 .content { padding: 20px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
 .content > h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
 .grid { display: grid; gap: 16px; align-items: stretch; }
-.g-top { grid-template-columns: 340px minmax(0, 1fr) 320px; }
-.g-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.g-tiles { grid-template-columns: var(--cols); }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-ptop { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
 .g-wide { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-@media (max-width: 1250px) { .g-top, .g-3, .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1250px) { .g-tiles, .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
+
+/* overview tiles: a card plus its remove button, which sits at the end of the card's header */
+.tile { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.tile > .card { flex: 1; }
+.tile > .card > .hd { padding-right: 24px; }
+.tile-x { position: absolute; top: 17px; right: 12px; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+.tile-x:hover { background: var(--plane); color: var(--ink); }
+.tile-x .ic { width: 13px; height: 13px; stroke-width: 2.5; vertical-align: 0; }
+/* stays in view at the bottom of the page while there are removed tiles to bring back */
+.restore { position: sticky; bottom: 16px; z-index: 2; align-self: flex-end; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 14px 6px 6px; box-shadow: 0 4px 14px rgba(11, 11, 11, .08); }
 
 /* cards */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: flex; flex-direction: column; min-width: 0; }

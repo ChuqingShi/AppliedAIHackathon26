@@ -21,6 +21,8 @@ export interface DemoAccount { id: string; role: Role }
 
 interface App {
   dashboard: Dashboard;
+  // Overview tiles this user has removed, as last saved.
+  hiddenTiles: string[];
   role: Role;
   view: string;
   query: string;
@@ -53,7 +55,7 @@ export function useProviderCase(): ProviderCase {
   return dashboard.case;
 }
 
-export function AppShell({ dashboard, demoAccounts, children }: { dashboard: Dashboard; demoAccounts: DemoAccount[]; children: ReactNode }) {
+export function AppShell({ dashboard, hiddenTiles, demoAccounts, children }: { dashboard: Dashboard; hiddenTiles: string[]; demoAccounts: DemoAccount[]; children: ReactNode }) {
   const params = useParams<{ view?: string }>();
   const pathname = usePathname();
   const role = dashboard.role;
@@ -107,8 +109,8 @@ export function AppShell({ dashboard, demoAccounts, children }: { dashboard: Das
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
-    [dashboard, role, view, query, setQuery, chat, asking, ask, toast],
+    () => ({ dashboard, hiddenTiles, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
+    [dashboard, hiddenTiles, role, view, query, setQuery, chat, asking, ask, toast],
   );
 
   return (
