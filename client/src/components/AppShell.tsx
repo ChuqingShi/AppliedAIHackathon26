@@ -2,7 +2,7 @@
 
 // CaseBoard: one dashboard, three roles. What it shows comes from `dashboard`,
 // the record the server built for whoever is signed in. The shell owns
-// everything that outlives a single view: search, the assistant's chat log,
+// everything that outlives a single view: the assistant's chat log,
 // the message dialog, toasts and what the user has put on their overview.
 
 import Link from "next/link";
@@ -12,10 +12,9 @@ import type { FormEvent, ReactNode } from "react";
 import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
-import { AskBar } from "./AskBar";
+import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
-import { SearchResults } from "./SearchResults";
+import { SearchBar } from "./SearchBar";
 
 export interface ChatMessage { me?: boolean; text: string }
 export interface DemoAccount { id: string; role: Role }
@@ -26,8 +25,6 @@ interface App {
   setOverview: (layout: OverviewLayout) => void;
   role: Role;
   view: string;
-  query: string;
-  setQuery: (q: string) => void;
   chat: ChatMessage[];
   thinking: boolean;
   ask: (question: string) => void;
@@ -56,16 +53,17 @@ export function useProviderCase(): ProviderCase {
   return dashboard.case;
 }
 
+export function useClientCase(): ClientCase {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "client") throw new Error("This card is for the client only");
+  return dashboard.case;
+}
+
 export function AppShell({ dashboard, overview: savedOverview, demoAccounts, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; children: ReactNode }) {
   const params = useParams<{ view?: string }>();
   const pathname = usePathname();
   const role = dashboard.role;
   const view = params.view ?? "overview";
-
-  // The search belongs to the page it was typed on, so back/forward clears it.
-  const [search, setSearch] = useState({ text: "", path: "" });
-  const query = search.path === pathname ? search.text : "";
-  const setQuery = useCallback((text: string) => setSearch({ text, path: pathname }), [pathname]);
 
   const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
   const [asking, setAsking] = useState(0);
@@ -123,8 +121,8 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, chi
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, overview, setOverview, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
-    [dashboard, overview, setOverview, role, view, query, setQuery, chat, asking, ask, toast],
+    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
+    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast],
   );
 
   return (
@@ -133,7 +131,7 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, chi
         <aside className="side"><Sidebar demoAccounts={demoAccounts} /></aside>
         <main className="main" ref={main}>
           <StickyHeader />
-          <div className="content">{query.trim() ? <SearchResults /> : children}</div>
+          <div className="content">{children}</div>
         </main>
       </div>
       <div id="overlay" className={messageTo ? "open" : ""} onClick={(e) => { if (e.target === e.currentTarget) setMessageTo(null); }}>
@@ -174,20 +172,15 @@ function frame(d: Dashboard) {
 const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider", client: "Client" };
 
 function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
-  const { dashboard, role, view, query, setQuery } = useApp();
+  const { dashboard, role, view } = useApp();
   const { user } = dashboard;
   const { box, counts } = frame(dashboard);
-  const searching = query.trim() !== "";
   return (
     <>
       <div className="logo"><span><Icon name="shield" /></span>CaseBoard</div>
-      <label className="search">
-        <Icon name="search" />
-        <input type="search" placeholder="Search this case" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
-      </label>
       <div className="casebox"><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
       {NAV[role].map(({ id, label, icon }) => (
-        <Link key={id} href={`/${id}`} className={view === id && !searching ? "nav on" : "nav"} onClick={() => setQuery("")}>
+        <Link key={id} href={`/${id}`} className={view === id ? "nav on" : "nav"}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}
         </Link>
       ))}
@@ -211,14 +204,14 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
   );
 }
 
-// Stays put above every view: the assistant (firm only) and, under it, a quiet
-// one-line progress bar. The case itself is named in the sidebar.
+// Stays put above every view: the search box (which is also how the firm asks
+// the assistant) and, under it, a quiet one-line progress bar. The case itself is named in the sidebar.
 function StickyHeader() {
   const { dashboard } = useApp();
   const { stages, stageIndex: s } = dashboard.case;
   return (
     <div className="stick">
-      {dashboard.role === "firm" && <AskBar />}
+      <SearchBar />
       <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${stages.length}, ${stages[s].name}, ${stages[s].date}`}>
         <span className="stage">Stage {s + 1} of {stages.length}</span>
         {stages.map((st, i) => (

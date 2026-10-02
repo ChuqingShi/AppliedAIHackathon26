@@ -13,6 +13,16 @@ import type { Case, ClientCase, ProviderCase } from "./types";
 
 const API = process.env.SAPINI_API_URL ?? "http://127.0.0.1:8000";
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+// The backend sends the client's date of birth ready to display ("Mar 3, 1992").
+// The dashboard keeps it as YYYY-MM-DD, which is what the client's own changes
+// are stored as (src/lib/profile.ts), and formats it where it is shown.
+function isoDay(text: string) {
+  const m = /^([A-Z][a-z]{2}) (\d{1,2}), (\d{4})$/.exec(text);
+  const month = m ? MONTHS.indexOf(m[1]) + 1 : 0;
+  return m && month ? `${m[3]}-${String(month).padStart(2, "0")}-${m[2].padStart(2, "0")}` : text;
+}
+
 // Once per request: the layout, the page and the accounts all share one fetch.
 export const loadCase = cache(async (): Promise<Case> => {
   const matter = process.env.SAPINI_MATTER_ID;
@@ -28,7 +38,8 @@ export const loadCase = cache(async (): Promise<Case> => {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `The backend returned ${res.status} for /case`);
   }
-  return res.json();
+  const c: Case = await res.json();
+  return { ...c, client: { ...c.client, dob: isoDay(c.client.dob) } };
 });
 
 // The record a provider is allowed to see. Whitelist only: anything not copied
@@ -53,10 +64,12 @@ export function forProvider(c: Case, providerId: string): ProviderCase {
 }
 
 // The record the client (plaintiff) is allowed to see. Same rule: whitelist only.
-// Their dashboard isn't designed yet, so this is just what the shared shell shows.
+// The rest of their dashboard isn't designed yet, so this is what the shared
+// shell shows plus what the firm holds about them personally.
 export function forClient(c: Case): ClientCase {
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     title: c.title, shortTitle: c.shortTitle,
+    client: c.client, incident: c.incident, injuries: c.injuries,
   };
 }

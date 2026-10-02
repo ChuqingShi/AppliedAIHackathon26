@@ -35,9 +35,6 @@ a { color: inherit; text-decoration: none; }
 .side { background: #fff; border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 18px 14px; gap: 4px; min-height: 0; }
 .logo { display: flex; align-items: center; gap: 9px; font-weight: 700; font-size: 16px; padding: 0 6px 12px; }
 .logo span { width: 28px; height: 28px; border-radius: 8px; background: var(--acc); color: #fff; display: grid; place-items: center; }
-.search { display: flex; align-items: center; gap: 8px; border: 1px solid var(--axis); border-radius: 8px; padding: 0 10px; color: var(--muted); margin-bottom: 10px; }
-.search:focus-within { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
-.search input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 9px 0; font-size: 13.5px; color: var(--ink); background: none; }
 .casebox { background: var(--plane); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; }
 .casebox small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .casebox b { display: block; font-weight: 600; margin: 1px 0; }
@@ -83,24 +80,64 @@ a { color: inherit; text-decoration: none; }
 .content { padding: 20px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
 .content > h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
 .grid { display: grid; gap: 16px; align-items: stretch; }
-.g-tiles { grid-template-columns: var(--cols); }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.g-ptop { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
 .g-wide { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-@media (max-width: 1250px) { .g-tiles, .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1250px) { .g-wide, .g-2 { grid-template-columns: 1fr; } }
 
-/* tiles: a card plus the button at the end of its header that takes it off the overview, or (in its section) puts it on */
+/* tiles: a card plus the buttons at the end of its header that lock it in place and take it off the overview, or (in its section) put it on */
 .tile { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .tile > .card { flex: 1; }
-.tile > .card > .hd { padding-right: 24px; }
-.tile-x { position: absolute; top: 17px; right: 12px; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
-.tile-x:hover { background: var(--plane); color: var(--ink); }
-.tile-x .ic { width: 13px; height: 13px; stroke-width: 2.5; vertical-align: 0; }
+.tile > .card > .hd { padding-right: 50px; }
+.tile-x, .tile-lock { position: absolute; top: 17px; right: 12px; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+.tile-lock { right: 38px; }
+.tile-x:hover, .tile-lock:hover { background: var(--plane); color: var(--ink); }
+.tile-lock.on, .tile-lock.on:hover { background: var(--acc-soft); color: var(--acc); }
+.tile-x .ic, .tile-lock .ic { width: 13px; height: 13px; stroke-width: 2.5; vertical-align: 0; }
 .tile.sec > .card > .hd { padding-right: 142px; }
 .tile-add, .tile-on { position: absolute; top: 16px; right: 19px; height: 24px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .tile-add { padding: 0 10px 0 8px; border: 1px solid var(--axis); border-radius: 999px; background: var(--surface); color: var(--ink2); }
 .tile-add:hover { border-color: var(--acc); color: var(--acc); }
 .tile-on { color: var(--muted); }
+/* the Auto-arrange button above the overview's tiles */
+.tiles-bar { display: none; justify-content: flex-end; margin: -6px 0; }
+/* the overview's rows. Tiles are dragged between them; the bar shows where the one being dragged will land */
+.tiles { display: flex; flex-direction: column; gap: 16px; }
+/* a row: its tiles side by side, wrapping when they don't fit. --s, --m and --l are the widths a tile can be
+   set to (a third, a half, two thirds of the row, a hair under so three thirds never wrap); a tile with no
+   set size shares what the others leave, and is never narrower than a small one */
+.g-tiles { position: relative; display: flex; flex-wrap: wrap; gap: 16px; --s: calc((100% - 32px) / 3 - .1px); --m: calc((100% - 16px) / 2 - .1px); --l: calc((100% - 32px) / 3 * 2 + 15.9px); }
+.g-tiles > .tile { flex: 1 1 100%; }
+/* the grip in the gap to a tile's right: pull it to resize. It stays lit on a tile whose size is set */
+.tile-size { position: absolute; top: 0; bottom: 0; right: -13px; width: 10px; display: none; place-items: center; cursor: ew-resize; touch-action: none; outline: 0; }
+.tile-size::before { content: ""; width: 4px; height: 36px; border-radius: 2px; background: var(--axis); opacity: 0; transition: opacity .12s; }
+.tile:hover > .tile-size::before { opacity: 1; }
+.tile-size.set::before { background: var(--acc); opacity: .55; }
+.tile-size:hover::before, .tile-size:focus-visible::before, .tile-size.on::before { background: var(--acc); opacity: 1; }
+.tile-size-tag { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 2; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+@media (min-width: 1251px) {
+  .g-tiles > .tile { flex: var(--grow) 1 0; min-width: var(--s); }
+  .g-tiles > .tile.size-s { flex: 0 0 var(--s); }
+  .g-tiles > .tile.size-m { flex: 0 0 var(--m); }
+  .g-tiles > .tile.size-l { flex: 0 0 var(--l); }
+  .g-tiles > .tile.size-full { flex: 0 0 100%; }
+  .tile-size { display: grid; }
+  .tiles-bar { display: flex; }
+}
+.tile[draggable="true"] { cursor: grab; }
+.tile.dragging { opacity: .4; }
+.tile.drop-before::before, .tile.drop-after::before, .g-tiles.drop-above::before, .g-tiles.drop-below::before { content: ""; position: absolute; z-index: 1; border-radius: 2px; background: var(--acc); pointer-events: none; }
+.tile.drop-before::before, .tile.drop-after::before { top: 0; bottom: 0; width: 4px; }
+.tile.drop-before::before { left: -10px; }
+.tile.drop-after::before { right: -10px; }
+.g-tiles.drop-above::before, .g-tiles.drop-below::before { left: 0; right: 0; height: 4px; }
+.g-tiles.drop-above::before { top: -10px; }
+.g-tiles.drop-below::before { bottom: -10px; }
+/* one column: beside becomes above and below */
+@media (max-width: 1250px) {
+  .tile.drop-before::before, .tile.drop-after::before { left: 0; right: 0; top: auto; bottom: auto; width: auto; height: 4px; }
+  .tile.drop-before::before { top: -10px; }
+  .tile.drop-after::before { bottom: -10px; }
+}
 /* stays in view at the bottom of the page while there are removed tiles to bring back */
 .restore { position: sticky; bottom: 16px; z-index: 2; align-self: flex-end; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 14px 6px 6px; box-shadow: 0 4px 14px rgba(11, 11, 11, .08); }
 
@@ -109,6 +146,8 @@ a { color: inherit; text-decoration: none; }
 .card > .hd { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
 .card > .hd h3 { font-size: 15px; font-weight: 600; }
 .card > .hd > :last-child:not(h3) { margin-left: auto; }
+/* a button in a header overhangs it, so the header stays as tall as one with only a title */
+.card > .hd > .btn { margin-block: -4px; }
 .link { font-size: 13px; color: var(--acc); font-weight: 500; }
 .link:hover { text-decoration: underline; }
 .tag { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
@@ -147,18 +186,27 @@ a { color: inherit; text-decoration: none; }
 .r-kv > span:first-child { color: var(--ink2); }
 .th { font-size: 11.5px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; padding-bottom: 8px; }
 
-/* ---------- AI assistant: the box in the top bar and the conversation under it ---------- */
-.askbar { position: relative; max-width: 820px; margin: 0 auto 14px; }
+/* ---------- search + assistant: the box in the top bar and the two dropdowns under it ---------- */
+.searchbar { position: relative; max-width: 820px; margin: 0 auto 14px; }
 .ask { display: flex; align-items: center; gap: 12px; height: 54px; border: 2px solid var(--acc); border-radius: 16px; padding: 0 9px 0 18px; background: #fff; box-shadow: 0 0 0 4px var(--acc-soft), 0 6px 18px rgba(31, 111, 92, .14); }
 .ask:focus-within { box-shadow: 0 0 0 5px var(--acc-soft), 0 8px 24px rgba(31, 111, 92, .22); }
 .ask > .ic { width: 21px; height: 21px; color: var(--acc); }
-.ask input { flex: 1; min-width: 0; border: 0; outline: 0; font-size: 16px; background: none; }
-.ask input::placeholder { color: var(--ink2); }
+.ask .field { position: relative; flex: 1; min-width: 0; align-self: stretch; display: flex; font-size: 16px; }
+.ask input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; }
+/* the rotating placeholder: each hint is a fresh element, so it fades in */
+.ask .ph { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); color: var(--ink2); pointer-events: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; animation: ph-in .45s ease; }
+@keyframes ph-in { from { opacity: 0; transform: translateY(calc(-50% + 7px)); } }
+@media (prefers-reduced-motion: reduce) { .ask .ph { animation: none; } }
 .ask button { width: 36px; height: 36px; border-radius: 10px; background: var(--acc); color: #fff; display: grid; place-items: center; }
-.askpanel { position: absolute; top: calc(100% + 10px); left: 0; right: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: 0 14px 36px rgba(11, 11, 11, .16); }
-.askpanel .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.askpanel .hd h3 { font-size: 13px; font-weight: 600; color: var(--ink2); }
-.askpanel .log { max-height: min(50vh, 420px); overflow-y: auto; display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.drops { position: absolute; top: calc(100% + 10px); left: 0; right: 0; z-index: 1; display: flex; align-items: flex-start; gap: 12px; }
+.drop { flex: 1; min-width: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; box-shadow: 0 14px 36px rgba(11, 11, 11, .16); }
+.drop .hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; font-size: 12.5px; }
+.drop .hd h3 { font-size: 13px; font-weight: 600; color: var(--ink2); }
+.drop .hits, .drop .log { max-height: min(50vh, 420px); overflow-y: auto; }
+.drop .hits .empty { padding: 20px 0; font-size: 13.5px; }
+.drop .log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.asknow { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 11px; margin-bottom: 10px; border-radius: 8px; background: var(--acc-soft); color: var(--acc); font-size: 13px; font-weight: 600; }
+.asknow span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .bubble { font-size: 13.5px; line-height: 1.45; padding: 9px 12px; border-radius: 12px; background: var(--plane); max-width: 94%; }
 .bubble.me { background: var(--acc-soft); margin-left: auto; }
 .bubble.wait { color: var(--muted); }
@@ -213,6 +261,15 @@ a { color: inherit; text-decoration: none; }
 .inj small { display: block; font-size: 12.5px; color: var(--ink2); }
 .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 14px; }
 .actions .btn { flex: 1; }
+
+/* the client's own details, as a form */
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+.fld { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); min-width: 0; }
+.fld.wide { grid-column: 1 / -1; }
+.fld input { width: 100%; border: 1px solid var(--axis); border-radius: 8px; padding: 8px 11px; outline: 0; font-size: 14px; color: var(--ink); background: #fff; }
+.fld input:focus { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+.fld input[aria-invalid] { border-color: var(--warn); }
+.btn:disabled { opacity: .6; cursor: default; }
 
 /* ---------- provider ---------- */
 .lead { font-size: 15.5px; line-height: 1.5; }

@@ -26,6 +26,25 @@ export interface ProviderFile {
   requests: ProviderRequest[];
 }
 
+// The personal details a client can read and change about themselves, as they
+// send them (src/data/details.ts lists them). `dob` is YYYY-MM-DD.
+export interface ClientDetails {
+  name: string; dob: string;
+  phone: string; email: string; address: string;
+  language: string; bestTime: string; occupation: string;
+}
+// The client as the firm holds them. A detail Clio doesn't have is null (`dob`
+// is "") until the client fills it in. `updated` is the day (YYYY-MM-DD) the
+// client last changed their details, if they have.
+export interface Client {
+  name: string; initials: string; dob: string; age: number | null;
+  phone: string | null; email: string | null; address: string | null;
+  language: string | null; bestTime: string | null; occupation: string | null;
+  updated?: string;
+}
+// What is wrong with the details a client sent, by field.
+export type DetailErrors = Partial<Record<keyof ClientDetails, string>>;
+
 // What every role sees: which case this is and how far along it is.
 export interface CaseFrame {
   id: string;
@@ -39,11 +58,7 @@ export interface Case extends CaseFrame {
   title: string;
   shortTitle: string;
   defendant: string | null;
-  client: {
-    name: string; initials: string; dob: string; age: number | null;
-    phone: string | null; email: string | null; address: string | null;
-    language: string | null; bestTime: string | null; occupation: string | null;
-  };
+  client: Client;
   incident: { date: string; type: string; location: string; summary: string };
   injuries: Injury[];
   financials: {
@@ -81,18 +96,28 @@ export interface ProviderCase extends CaseFrame {
   team: TeamMember[];
 }
 
-// What the client (the plaintiff) sees. Their dashboard isn't designed yet, so
-// for now this is only what the shared shell needs.
+// What the client (the plaintiff) sees. The rest of their dashboard isn't
+// designed yet, so for now this is what the shared shell needs and what the
+// firm holds about them personally.
 export interface ClientCase extends CaseFrame {
   title: string;
   shortTitle: string;
+  client: Client;
+  incident: Case["incident"];
+  injuries: Injury[];
 }
 
 export interface User { id: string; name: string; initials: string; title: string }
 
+// The widths a user can set a tile to: a third, a half or two thirds of its row.
+export type TileSize = "s" | "m" | "l";
+
 // What a user has changed on their overview, as tile ids: the tiles they took
-// off (in that order) and the ones they added from other sections.
-export interface OverviewLayout { removed: string[]; added: string[] }
+// off (in that order), the ones they added from other sections, once they have
+// dragged tiles around, which row each one sits in (`rows`; empty until then),
+// the size of each tile they resized (`sizes`; the rest fit around those), and
+// the tiles they locked in place (`locked`; Auto-arrange leaves those alone).
+export interface OverviewLayout { removed: string[]; added: string[]; rows: string[][]; sizes: Record<string, TileSize>; locked: string[] }
 
 // One dashboard, three roles: the signed-in user's role decides which record
 // the server builds, and so what the browser receives.

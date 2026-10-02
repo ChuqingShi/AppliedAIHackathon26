@@ -4,8 +4,10 @@ import { redirect } from "next/navigation";
 import { findAccount } from "@/data/accounts";
 import { answer } from "@/lib/assistant";
 import { getDashboard } from "@/lib/dashboard";
-import type { OverviewLayout } from "@/data/types";
+import { DETAILS } from "@/data/details";
+import type { DetailErrors, OverviewLayout } from "@/data/types";
 import { setOverviewLayout } from "@/lib/preferences";
+import { checkDetails, setClientEdits } from "@/lib/profile";
 import { createSession, deleteSession, requireSession } from "@/lib/session";
 
 export async function login(formData: FormData) {
@@ -27,8 +29,20 @@ export async function askAssistant(question: string) {
   return answer(dashboard.case, String(question).slice(0, 2000));
 }
 
-// Saves which tiles the signed-in user has removed from and added to their overview.
+// Saves which tiles the signed-in user has removed from and added to their overview, and how they arranged, sized and locked them.
 export async function saveOverviewLayout(layout: OverviewLayout) {
   const account = await requireSession();
   await setOverviewLayout(account.id, layout);
+}
+
+// Saves the client's changes to their own personal details and returns what is
+// wrong with them, or null once they are saved. Only the client can change them.
+export async function saveClientDetails(form: FormData): Promise<DetailErrors | null> {
+  const dashboard = await getDashboard();
+  if (dashboard.role !== "client") throw new Error("Forbidden");
+  const checked = checkDetails((key) => form.get(key));
+  if ("errors" in checked) return checked.errors;
+  const { client } = dashboard.case;
+  if (DETAILS.some((f) => checked.details[f.key] !== client[f.key])) await setClientEdits(dashboard.case.id, checked.details);
+  return null;
 }
