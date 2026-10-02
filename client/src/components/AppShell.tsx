@@ -13,6 +13,7 @@ import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
 import type { Case, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
+import { AskBar } from "./AskBar";
 import { Icon } from "./Icon";
 import { SearchResults } from "./SearchResults";
 
@@ -157,20 +158,14 @@ function frame(d: Dashboard) {
   switch (d.role) {
     case "firm": return {
       box: { label: "Case", title: d.case.shortTitle, sub: d.case.id },
-      heading: d.case.title,
-      meta: `Case ${d.case.id} · Client ${d.case.client.name}`,
       counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
     };
     case "provider": return {
       box: { label: "Patient", title: d.case.patient.name, sub: d.case.firm },
-      heading: `${d.case.patient.name} — injury case`,
-      meta: `${d.case.firm} · Case ${d.case.id}`,
       counts: { records: d.case.requests.length } as Record<string, number>,
     };
     case "client": return {
       box: { label: "Your case", title: d.case.shortTitle, sub: d.case.firm },
-      heading: d.case.title,
-      meta: `${d.case.firm} · Case ${d.case.id}`,
       counts: {} as Record<string, number>,
     };
   }
@@ -216,22 +211,21 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
   );
 }
 
+// Stays put above every view: the assistant (firm only) and, under it, a quiet
+// one-line progress bar. The case itself is named in the sidebar.
 function StickyHeader() {
   const { dashboard } = useApp();
-  const { heading, meta } = frame(dashboard);
   const { stages, stageIndex: s } = dashboard.case;
   return (
     <div className="stick">
-      <div className="sh">
-        <h1>{heading}</h1>
-        <span className="meta">{meta}</span>
-        <span className="chip">Stage {s + 1} of {stages.length} · {stages[s].name}</span>
-      </div>
-      <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${stages.length}, ${stages[s].name}`}>
+      {dashboard.role === "firm" && <AskBar />}
+      <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${stages.length}, ${stages[s].name}, ${stages[s].date}`}>
+        <span className="stage">Stage {s + 1} of {stages.length}</span>
         {stages.map((st, i) => (
-          <div key={st.name} className={`step ${i < s ? "done" : i === s ? "now" : "todo"}`}>
-            <div className="node">{i < s ? <Icon name="check" /> : i + 1}</div>
-            <div className="nm">{st.name}</div><div className="dt">{st.date}</div>
+          <div key={st.name} className={`step ${i < s ? "done" : i === s ? "now" : "todo"}`} title={`${st.name} · ${st.date}`}>
+            <span className="node" />
+            <span className="nm">{st.name}</span>
+            {i === s && <span className="dt">{st.date}</span>}
           </div>
         ))}
       </div>

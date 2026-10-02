@@ -1,47 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import type { FormEvent } from "react";
 import type { Case, CaseUpdate, Injury } from "@/data/types";
 import { useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
-import { FirmOnly, Go, Rich, Status, billsTotal, money, moneyK } from "./ui";
-
-const SUGGESTED = ["What changed recently?", "What are the numbers?", "What's still missing?", "What's due next?"];
+import { FirmOnly, Go, Status, billsTotal, money, moneyK } from "./ui";
 
 export function InjuriesList({ injuries, withProvider }: { injuries: Injury[]; withProvider?: boolean }) {
   if (!injuries.length) return <p className="ink2" style={{ fontSize: 13 }}>No injuries recorded.</p>;
   return injuries.map((j) => (
     <div className="inj" key={j.name}><div>{j.name}<small>{j.status}{withProvider && j.by ? ` · treated by ${j.by}` : ""}</small></div></div>
   ));
-}
-
-export function CardAssistant() {
-  const { chat, thinking, ask } = useApp();
-  const log = useRef<HTMLDivElement>(null);
-  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat, thinking]);
-
-  function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const input = e.currentTarget.elements.namedItem("q") as HTMLInputElement;
-    ask(input.value);
-    input.value = "";
-  }
-
-  return (
-    <div className="card ai">
-      <div className="hd"><h3><Icon name="spark" /> Ask about this case</h3><FirmOnly /></div>
-      <div className="log" ref={log} aria-live="polite">
-        {chat.map((m, i) => <div key={i} className={m.me ? "bubble me" : "bubble"}><Rich text={m.text} /></div>)}
-        {thinking && <div className="bubble wait">Looking at the case…</div>}
-      </div>
-      <div className="chips">{SUGGESTED.map((q) => <button key={q} onClick={() => ask(q)}>{q}</button>)}</div>
-      <form className="ask" onSubmit={submit}>
-        <input name="q" placeholder="Ask anything about this case" autoComplete="off" />
-        <button aria-label="Send"><Icon name="send" /></button>
-      </form>
-    </div>
-  );
 }
 
 // The money figures this case actually has, smallest first. Clio holds no
