@@ -11,6 +11,7 @@ import {
   CardAttention, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
   CardFinancials, CardMoney, CardProviderBills, CardStatus, CardTasks, CardUpdates,
 } from "./firm-cards";
+import { CardQuestionsForYou, CardQuestionsSent } from "./inquiry-cards";
 import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, CardTeam } from "./provider-cards";
 
 // Every tile the firm's overview can show. Those with a `row` are there by
@@ -33,27 +34,31 @@ const T = {
   providerBills: { id: "provider-bills", title: "Medical bills by provider", size: "m", card: <CardProviderBills /> },
   breakdown: { id: "breakdown", title: "Settlement breakdown", card: <CardBreakdown /> },
   caseFacts: { id: "case-facts", title: "Case details", card: <CardCaseFacts /> },
+  questions: { id: "questions", title: "Questions sent", row: 3, size: "m", card: <CardQuestionsSent limit={3} /> },
 } satisfies Record<string, Tile>;
 
 // The same for a provider's overview. Each card is built from the provider's
-// own record, so a tile shows nothing its section doesn't.
+// own record, so a tile shows nothing its section doesn't. What the legal team
+// has asked them comes first, alone in its row.
 const P = {
-  progress: { id: "progress", title: "How the case is going", row: 0, card: <CardProgress /> },
-  patient: { id: "patient", title: "Patient", row: 0, card: <CardPatient /> },
-  team: { id: "team", title: "Legal team", row: 0, card: <CardTeam /> },
-  records: { id: "records", title: "Your medical records & documents", row: 1, size: "m", card: <CardRecords /> },
-  updates: { id: "status-updates", title: "Status updates", row: 1, card: <CardProviderUpdates limit={4} /> },
+  questions: { id: "questions", title: "Questions from your legal team", row: 0, card: <CardQuestionsForYou limit={3} /> },
+  progress: { id: "progress", title: "How the case is going", row: 1, card: <CardProgress /> },
+  patient: { id: "patient", title: "Patient", row: 1, card: <CardPatient /> },
+  team: { id: "team", title: "Legal team", row: 1, card: <CardTeam /> },
+  records: { id: "records", title: "Your medical records & documents", row: 2, size: "m", card: <CardRecords /> },
+  updates: { id: "status-updates", title: "Status updates", row: 2, card: <CardProviderUpdates limit={4} /> },
   bill: { id: "bill", title: "Your bill", card: <CardBill /> },
 } satisfies Record<string, Tile>;
 
 // And for the client's: what the firm holds about them, which they can correct
 // right on the tile, and who is working on their case.
 const C = {
-  details: { id: "my-details", title: "Your details", row: 0, size: "m", card: <CardMyDetails /> },
-  providers: { id: "my-providers", title: "Your medical providers", row: 0, card: <CardMyProviders /> },
-  status: { id: "my-case", title: "Where your case stands", row: 1, card: <CardMyCase /> },
-  incident: { id: "my-incident", title: "Your incident and injuries", row: 1, card: <CardMyIncident /> },
-  team: { id: "my-team", title: "Your legal team", row: 1, card: <CardMyTeam /> },
+  questions: { id: "questions", title: "Questions from your legal team", row: 0, card: <CardQuestionsForYou limit={3} /> },
+  details: { id: "my-details", title: "Your details", row: 1, size: "m", card: <CardMyDetails /> },
+  providers: { id: "my-providers", title: "Your medical providers", row: 1, card: <CardMyProviders /> },
+  status: { id: "my-case", title: "Where your case stands", row: 2, card: <CardMyCase /> },
+  incident: { id: "my-incident", title: "Your incident and injuries", row: 2, card: <CardMyIncident /> },
+  team: { id: "my-team", title: "Your legal team", row: 2, card: <CardMyTeam /> },
 } satisfies Record<string, Tile>;
 
 // One entry per item in NAV (src/data/nav.ts).
@@ -84,6 +89,7 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     todo: () => <><h2>To-do</h2><SectionTile tile={T.tasks}><CardTasks /></SectionTile></>,
     providers: () => <><h2>Medical providers</h2><SectionTile tile={T.providerBills}><CardProviderBills withMessage /></SectionTile></>,
     updates: () => <><h2>Updates</h2><SectionTile tile={T.updates}><CardUpdates /></SectionTile></>,
+    questions: () => <><h2>Questions sent</h2><SectionTile tile={T.questions}><CardQuestionsSent /></SectionTile></>,
   },
   provider: {
     // The provider's own sign-in briefing pops up over their overview too.
@@ -116,6 +122,7 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
       </>
     ),
     team: () => <><h2>Legal team</h2><SectionTile tile={P.team}><CardTeam full /></SectionTile></>,
+    questions: () => <><h2>Questions for you</h2><SectionTile tile={P.questions}><CardQuestionsForYou /></SectionTile></>,
   },
   client: {
     overview: () => <Overview tiles={Object.values(C)} />,
@@ -128,6 +135,7 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
         </div>
       </>
     ),
+    questions: () => <><h2>Questions for you</h2><SectionTile tile={C.questions}><CardQuestionsForYou /></SectionTile></>,
   },
 };
 

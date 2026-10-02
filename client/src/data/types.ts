@@ -18,9 +18,28 @@ export interface CaseDocument { id?: number; name: string; kind: string; date: s
 // /case/search). `snippet` is the matching stretch of the page, with the matched
 // words in **bold** marks.
 export interface Passage { docId: number; name: string; page: number; snippet: string }
+// A message to someone who can supply what the case doesn't hold: `to` is a
+// provider's id or "client".
+export interface Draft { to: string; message: string }
 // What the assistant answers: text with **bold** marks, and the pages it took the
 // answer from. Where the text cites one as [1], that is the first of `sources`.
-export interface Reply { text: string; sources: Passage[] }
+// `draft` is a message asking for the answer from whoever would have it; with
+// `missing`, the case doesn't hold the answer, so sending that message is the next step.
+export interface Reply { text: string; sources: Passage[]; draft?: Draft; missing?: boolean }
+// A question the firm sent to a medical provider or the client, and how far it has
+// got: sent, seen by them, answered, closed by the firm. Times are ISO timestamps.
+// `asked` is what the firm typed in the search box that led to it; only the firm gets it.
+export interface Inquiry {
+  id: number;
+  asked: string | null;
+  to: { id: string; name: string }; // a provider's id, or "client"
+  from: string;
+  message: string;
+  sentAt: string;
+  seenAt: string | null;
+  reply: string | null; repliedBy: string | null; repliedAt: string | null;
+  closedAt: string | null;
+}
 export interface UpdateText { t: string; s: string }
 export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }
 export interface TeamMember { name: string; initials: string; role: string; main?: boolean }
@@ -137,8 +156,10 @@ export type TileSize = "s" | "m" | "l";
 export interface OverviewLayout { removed: string[]; added: string[]; rows: string[][]; sizes: Record<string, TileSize>; locked: string[] }
 
 // One dashboard, three roles: the signed-in user's role decides which record
-// the server builds, and so what the browser receives.
+// the server builds, and so what the browser receives. `inquiries` are the
+// questions the firm has sent: all of them for the firm, and for a provider or
+// the client the ones sent to them.
 export type Dashboard =
-  | { role: "firm"; user: User; case: Case; briefing: string }
-  | { role: "provider"; user: User; case: ProviderCase }
-  | { role: "client"; user: User; case: ClientCase };
+  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[] }
+  | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[] }
+  | { role: "client"; user: User; case: ClientCase; inquiries: Inquiry[] };

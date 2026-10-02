@@ -73,7 +73,8 @@ def passage(marked: str, words: list[str]) -> tuple[str, set[str], float]:
 def search(question: str, matter_id: int | None = None, limit: int = 8, full: bool = False) -> list[dict]:
     """The pages that best match a question, best first: [{docId, name, page, snippet}]. The
     snippet marks the matched words in **bold**. full=True is for the assistant to read: it
-    adds each page's text and lets one document fill the list.
+    adds each page's text and whether the page has all of the question's words, and lets one
+    document fill the list.
 
     FTS5 finds the candidates by BM25. They are then put in order by how many of the question's
     words the page (or its document's name) has, then how close together it has them, then BM25."""
@@ -98,16 +99,17 @@ def search(question: str, matter_id: int | None = None, limit: int = 8, full: bo
         snippet, found, span = passage(r["marked"] or "", words)
         in_name = {which_term(w, words) for w in re.findall(r"\*\*(.+?)\*\*", r["marked_name"] or "")}
         score = r["score"] * (BILL_WEIGHT[about_money] if r["doc_type"] == "medical_bill" else 1)  # lower is better
-        ranked.append((-len(found | in_name), span, score, r, snippet))
+        ranked.append((-len(found | in_name), span, score, r, snippet, len(found | in_name) == len(words)))
     ranked.sort(key=lambda x: x[:3])
     hits, per_doc = [], {}
-    for *_, r, snippet in ranked:
+    for *_, r, snippet, complete in ranked:
         per_doc[r["doc_id"]] = per_doc.get(r["doc_id"], 0) + 1
         if per_doc[r["doc_id"]] > PER_DOC and not full:
             continue
         hit = {"docId": r["doc_id"], "name": clean_doc_name(r["name"] or ""), "page": r["page"], "snippet": snippet}
         if full:
-            hit["text"] = r["text"] or ""
+            # `complete`: the page (with its document's name) has every word of the question.
+            hit.update(text=r["text"] or "", complete=complete)
         hits.append(hit)
         if len(hits) == limit:
             break

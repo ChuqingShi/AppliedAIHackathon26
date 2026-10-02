@@ -3,6 +3,8 @@
 // real users: signing in is just picking one of these.
 
 import "server-only";
+import { unanswered } from "@/components/format";
+import { getInquiries } from "@/lib/inquiries";
 import { loadCase } from "./case";
 import type { User } from "./types";
 
@@ -15,8 +17,11 @@ export async function getAccounts(): Promise<Account[]> {
   const c = await loadCase();
   const lead = c.team.find((m) => m.main) ?? c.team[0];
   const firm: Account[] = lead ? [{ id: "firm", role: "firm", name: lead.name, initials: lead.initials, title: lead.role }] : [];
-  // Providers we're waiting on come first, so the demo opens on one with something to do.
-  const providers = [...c.providers].sort((a, b) => c.providerFiles[b.id].requests.length - c.providerFiles[a.id].requests.length);
+  // Providers we're waiting on come first, so the demo opens on one with something
+  // to do: a question from the firm to answer, before records to send.
+  const asked = unanswered(await getInquiries(c.id));
+  const waiting = (id: string) => asked.filter((q) => q.to.id === id).length * 100 + c.providerFiles[id].requests.length;
+  const providers = [...c.providers].sort((a, b) => waiting(b.id) - waiting(a.id));
   return [
     ...firm,
     ...providers.map((p): Account => {

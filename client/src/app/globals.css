@@ -247,6 +247,7 @@ a { color: inherit; text-decoration: none; }
 .drop .hd h3 { font-size: 13px; font-weight: 600; color: var(--ink2); }
 .drop .hits, .drop .log { max-height: min(50vh, 420px); overflow-y: auto; }
 .drop .hits .empty { padding: 20px 0; font-size: 13.5px; }
+.drop .hits .row > div { min-width: 0; overflow-wrap: anywhere; }
 /* the document pages that match come under the other matches, each a link to its page */
 .drop .hits .th { padding-top: 12px; }
 .drop .hits .th:first-child { padding-top: 0; }
@@ -262,9 +263,47 @@ a { color: inherit; text-decoration: none; }
 .bubble .srcs a { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 9px 3px 4px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); background: #fff; }
 .bubble .srcs a:hover { border-color: var(--acc); color: var(--acc); }
 .bubble .srcs b { min-width: 17px; height: 17px; border-radius: 999px; display: grid; place-items: center; font-size: 11px; background: var(--acc-soft); color: var(--acc); }
+/* the message that asks someone outside the firm for what the case doesn't hold */
+.bubble .draft { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.bubble .draft label { display: flex; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 600; color: var(--ink2); }
+.bubble .draft select { flex: 1; min-width: 0; font: inherit; font-weight: 400; color: var(--ink); padding: 5px 8px; border: 1px solid var(--axis); border-radius: 7px; background: #fff; }
+.bubble .draft textarea, .q-answer textarea { width: 100%; resize: vertical; border: 1px solid var(--axis); border-radius: 8px; padding: 8px 10px; outline: 0; font-size: 13px; line-height: 1.45; background: #fff; }
+.bubble .draft textarea { height: 120px; }
+.bubble .draft textarea:focus, .bubble .draft select:focus, .q-answer textarea:focus { border-color: var(--acc); box-shadow: 0 0 0 3px var(--acc-soft); }
+.bubble .draft .rw, .q-answer .rw { display: flex; justify-content: flex-end; gap: 8px; }
+.bubble .draft .err { color: #b3261e; }
+.btn:disabled { opacity: .55; cursor: default; filter: none; }
+.asklink { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12.5px; font-weight: 600; color: var(--acc); }
+.asklink:hover { text-decoration: underline; }
+.asked { display: flex; gap: 6px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 13px; color: var(--good-ink); }
+.asked a { color: var(--acc); font-weight: 600; text-decoration: underline; }
+.asked .ic { margin-top: 2px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chips button { font-size: 12.5px; padding: 5px 10px; border-radius: 999px; border: 1px solid var(--axis); color: var(--ink2); background: #fff; }
 .chips button:hover { border-color: var(--acc); color: var(--acc); }
+
+/* ---------- questions the firm sends out, and their answers ---------- */
+.q { padding: 12px 0; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+.card > .hd + .q { border-top: 0; padding-top: 0; }
+.q.done { opacity: .7; }
+.q-hd { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.q-asked { font-size: 12.5px; color: var(--ink2); }
+.q-msg { white-space: pre-wrap; color: var(--ink2); }
+/* on the firm's overview a long message is cut short; the Questions page has it whole */
+.q-msg.cut { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.q-steps { display: flex; gap: 6px; margin-top: 2px; }
+.q-steps span { flex: 1; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 7px; border-top: 3px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.q-steps span.done { border-top-color: var(--acc); color: var(--ink); }
+.q-steps i { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--axis); display: grid; place-items: center; flex: none; }
+.q-steps .done i { background: var(--acc); border-color: var(--acc); color: #fff; }
+.q-steps i .ic { width: 10px; height: 10px; stroke-width: 3; }
+.q-steps small { font-weight: 400; color: var(--ink2); }
+.q-reply { margin-top: 4px; padding: 10px 12px; border-radius: 10px; background: var(--acc-soft); display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+.q-reply small { font-size: 12px; font-weight: 600; color: var(--acc); }
+.q-reply p { white-space: pre-wrap; }
+.q.done .q-reply, .q-reply:has(small:only-child) { background: var(--plane); }
+.q-answer { display: flex; flex-direction: column; gap: 8px; margin-top: 4px; }
+.q-answer textarea { height: 84px; }
 
 /* ---------- financials ---------- */
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }

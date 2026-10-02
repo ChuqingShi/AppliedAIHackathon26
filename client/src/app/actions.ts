@@ -2,10 +2,12 @@
 
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
+import { recipients } from "@/components/format";
 import { findAccount } from "@/data/accounts";
 import { reply } from "@/lib/assistant";
 import { clearBriefing, queueBriefing } from "@/lib/briefing";
 import { getDashboard } from "@/lib/dashboard";
+import { addInquiry, changeInquiry } from "@/lib/inquiries";
 import { DETAILS } from "@/data/details";
 import type { DetailErrors, OverviewLayout } from "@/data/types";
 import { setOverviewLayout } from "@/lib/preferences";
@@ -42,7 +44,48 @@ export async function askAssistant(question: string) {
   const dashboard = await getDashboard();
   // The assistant answers from the full case record, so it is for the firm only.
   if (dashboard.role !== "firm") throw new Error("Forbidden");
-  return reply(dashboard.case, String(question).slice(0, 2000));
+  return reply(dashboard, String(question).slice(0, 2000));
+}
+
+// Sends a question from the firm to the client or to a medical provider on the
+// case. `asked` is what was typed in the search box that led to it, if anything.
+export async function sendInquiry(asked: string | null, to: string, message: string) {
+  const dashboard = await getDashboard();
+  if (dashboard.role !== "firm") throw new Error("Forbidden");
+  const recipient = recipients(dashboard.case).find((r) => r.id === to);
+  const text = String(message).trim().slice(0, 4000);
+  if (!recipient || !text) throw new Error("A question needs someone on the case to go to, and a message");
+  await addInquiry(dashboard.case.id, {
+    asked: asked ? String(asked).slice(0, 2000) : null,
+    to: { id: recipient.id, name: recipient.name }, from: dashboard.user.name, message: text,
+  });
+  // Send the questions back with the reply, now that this one is among them.
+  refresh();
+}
+
+// Marks the questions sent to the signed-in provider or client as seen, which the firm is shown.
+export async function seeInquiries() {
+  const dashboard = await getDashboard();
+  if (dashboard.role === "firm") return;
+  await Promise.all(dashboard.inquiries.filter((q) => !q.seenAt).map((q) => changeInquiry(q.id, { seen: true })));
+}
+
+// Answers a question. Only the provider or client it was sent to can.
+export async function answerInquiry(id: number, answer: string) {
+  const dashboard = await getDashboard();
+  const text = String(answer).trim().slice(0, 4000);
+  // A provider's and the client's `inquiries` are only their own.
+  if (dashboard.role === "firm" || !dashboard.inquiries.some((q) => q.id === id) || !text) throw new Error("Forbidden");
+  await changeInquiry(id, { reply: text, repliedBy: dashboard.user.name });
+  refresh();
+}
+
+// The firm is done with a question (it has what it needed, or no longer needs it).
+export async function closeInquiry(id: number) {
+  const dashboard = await getDashboard();
+  if (dashboard.role !== "firm" || !dashboard.inquiries.some((q) => q.id === id)) throw new Error("Forbidden");
+  await changeInquiry(id, { closed: true });
+  refresh();
 }
 
 // Saves which tiles the signed-in user has removed from and added to their overview, and how they arranged, sized and locked them.

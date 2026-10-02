@@ -3,13 +3,15 @@
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { Dashboard, Passage } from "@/data/types";
-import { useApp } from "./AppShell";
+import { sendInquiry } from "@/app/actions";
+import type { Dashboard, Draft, Passage } from "@/data/types";
+import { useApp, useFirmCase } from "./AppShell";
+import { recipients } from "./format";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { FirmOnly, Rich, money } from "./ui";
 
-const SUGGESTED = ["What changed this week?", "How far apart are we?", "What's still missing?", "What's due next?"];
+const SUGGESTED = ["What changed this week?", "How far apart are we?", "What's still missing?", "What's due next?", "What are the latest injury updates?"];
 const HINT_MS = 3200;
 // The documents are searched once typing has paused this long, and from this many letters.
 const SEARCH_MS = 250;
@@ -68,12 +70,57 @@ function hints(d: Dashboard): string[] {
   return usable.length ? usable : ["Search this case"];
 }
 
+// Under an answer: the message that asks whoever would know. It is open when the
+// case doesn't hold the answer (`missing`), and one click away when it does. The
+// firm can change who it goes to and what it says before sending; once sent, it
+// is tracked under "Questions sent".
+function AskSomeone({ asked, draft, missing, onLeave }: { asked: string; draft: Draft; missing: boolean; onLeave: () => void }) {
+  const to = recipients(useFirmCase());
+  const [open, setOpen] = useState(missing);
+  const [who, setWho] = useState(draft.to);
+  const [message, setMessage] = useState(draft.message);
+  const [state, setState] = useState<"draft" | "sending" | "sent" | "failed">("draft");
+  const name = to.find((r) => r.id === who)?.name;
+
+  async function send(e: FormEvent) {
+    e.preventDefault();
+    setState("sending");
+    try {
+      await sendInquiry(asked, who, message);
+      setState("sent");
+    } catch {
+      setState("failed");
+    }
+  }
+
+  if (state === "sent") {
+    return <div className="asked"><Icon name="check" sm /><span>Sent to <b>{name}</b>. Their answer will show under <Link href="/questions" onClick={onLeave}>Questions sent</Link>.</span></div>;
+  }
+  if (!open) return <button className="asklink" onClick={() => setOpen(true)}><Icon name="msg" sm />Ask someone for this instead</button>;
+  return (
+    <form className="draft" onSubmit={send}>
+      <label>Send to
+        <select value={who} onChange={(e) => setWho(e.target.value)}>
+          {to.map((r) => <option key={r.id} value={r.id}>{r.name} ({r.what.toLowerCase()})</option>)}
+        </select>
+      </label>
+      <textarea value={message} onChange={(e) => setMessage(e.target.value)} aria-label="Message" required />
+      {state === "failed" && <small className="err">Couldn&apos;t send it. Try again in a moment.</small>}
+      <div className="rw">
+        {!missing && <button type="button" className="btn ghost sm" onClick={() => setOpen(false)}>Cancel</button>}
+        <button className="btn sm" disabled={state === "sending" || !message.trim()}><Icon name="send" />{state === "sending" ? "Sending…" : "Send message"}</button>
+      </div>
+    </form>
+  );
+}
+
 // The one box in the top bar, for searching the case and (for the firm) asking
 // the assistant. Two dropdowns open under it while there is something typed:
 // matches in the case on the left, the assistant on the right. For the firm the
 // matches include the pages of the case's documents that say what was typed,
-// and the assistant answers from those pages. They close on Escape or a click
-// elsewhere.
+// and the assistant answers from everything held on the case. When the case
+// doesn't hold the answer, it offers a message to whoever would know. They close
+// on Escape or a click elsewhere.
 export function SearchBar() {
   const { dashboard, chat, thinking, ask } = useApp();
   const canAsk = dashboard.role === "firm";
@@ -191,6 +238,7 @@ export function SearchBar() {
                         {m.sources.map((p, n) => <a key={n} href={pageLink(p)} target="_blank" rel="noreferrer" title={p.snippet.replaceAll("**", "")}><b>{n + 1}</b>{p.name}, p. {p.page}</a>)}
                       </div>
                     ) : null}
+                    {m.draft && m.asked ? <AskSomeone asked={m.asked} draft={m.draft} missing={Boolean(m.missing)} onLeave={leave} /> : null}
                   </div>
                 ))}
                 {thinking && <div className="bubble wait">Looking at the case…</div>}

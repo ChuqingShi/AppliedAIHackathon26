@@ -6,19 +6,25 @@
 // the message dialog, toasts and what the user has put on their overview.
 
 import Link from "next/link";
-import { useParams, usePathname } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { askAssistant, currentAccount, dismissBriefing, login, logout, saveOverviewLayout } from "@/app/actions";
+import { askAssistant, currentAccount, dismissBriefing, login, logout, saveOverviewLayout, sendInquiry } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, ClientCase, Dashboard, OverviewLayout, Passage, ProviderCase } from "@/data/types";
+import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase, Reply } from "@/data/types";
+import { newAnswers, recipients, unanswered } from "./format";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
 import { PhotoIdThumb } from "./ui";
 
-// `sources` are the document pages an answer was taken from.
-export interface ChatMessage { me?: boolean; text: string; sources?: Passage[] }
+// What the firm asked (`me`), or the assistant's reply: its text, the document
+// pages it was taken from, the question it answers (`asked`) and, when someone
+// outside the firm would know better, the message that asks them.
+export interface ChatMessage extends Partial<Reply> { me?: boolean; text: string; asked?: string }
+// How often an open dashboard asks the server what has changed, so a question's
+// progress and a new answer show without reloading.
+const REFRESH_MS = 15_000;
 export interface DemoAccount { id: string; role: Role }
 
 interface App {
@@ -105,7 +111,7 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     setAsking((n) => n + 1);
     try {
       const reply = await askAssistant(q);
-      setChat((log) => [...log, reply]);
+      setChat((log) => [...log, { ...reply, asked: q }]);
     } catch {
       setChat((log) => [...log, { text: "The assistant couldn't be reached. Try again in a moment." }]);
     } finally {
@@ -142,10 +148,20 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     return () => document.removeEventListener("keydown", onKey);
   }, [messageTo]);
 
-  function sendMessage(e: FormEvent) {
+  // From the firm to the client or a provider, a message is a question sent: it
+  // reaches their dashboard and its answer is tracked. Anyone else's still only shows a toast.
+  async function sendMessage(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    toast(`Message to ${messageTo} sent (prototype: not delivered)`);
+    const text = String(new FormData(e.currentTarget).get("message") ?? "");
+    const to = dashboard.role === "firm" ? recipients(dashboard.case).find((r) => r.name === messageTo) : undefined;
     setMessageTo(null);
+    if (!to) return toast(`Message to ${messageTo} sent (prototype: not delivered)`);
+    try {
+      await sendInquiry(null, to.id, text);
+      toast(`Sent to ${to.name}. Their answer will show under Questions sent.`);
+    } catch {
+      toast("Couldn’t send that message. Try again in a moment.");
+    }
   }
 
   // Closing the briefing hides it at once and tells the server, so a refresh doesn't reopen it.
@@ -168,6 +184,13 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     return () => window.removeEventListener("focus", check);
   }, [userId]);
 
+  // While the tab is looked at, keep what it shows up to date with the server.
+  const router = useRouter();
+  useEffect(() => {
+    const timer = setInterval(() => { if (document.visibilityState === "visible") router.refresh(); }, REFRESH_MS);
+    return () => clearInterval(timer);
+  }, [router]);
+
   const app = useMemo<App>(
     () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, openBriefing, closeBriefing }),
     [dashboard, overview, setOverview, role, view, chat, asking, ask, toast, briefingOpen, openBriefing, closeBriefing],
@@ -186,7 +209,7 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
         {messageTo && (
           <form className="dialog" onSubmit={sendMessage}>
             <h3>Message {messageTo}</h3>
-            <textarea placeholder="Write your message…" required autoFocus />
+            <textarea name="message" placeholder="Write your message…" required autoFocus />
             <div className="rw">
               <button type="button" className="btn ghost" onClick={() => setMessageTo(null)}>Cancel</button>
               <button className="btn"><Icon name="send" />Send</button>
@@ -228,15 +251,15 @@ function frame(d: Dashboard) {
       client: d.case.photoIdDoc != null
         ? { docId: d.case.photoIdDoc, name: d.case.client.name, age: d.case.client.age }
         : null,
-      counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
+      counts: { todo: d.case.tasks.filter((t) => t.urgent).length, questions: newAnswers(d.inquiries).length } as Record<string, number>,
     };
     case "provider": return {
       box: { label: "Patient", title: d.case.patient.name, sub: d.case.firm },
-      counts: { records: d.case.requests.length } as Record<string, number>,
+      counts: { records: d.case.requests.length, questions: unanswered(d.inquiries).length } as Record<string, number>,
     };
     case "client": return {
       box: { label: "Your case", title: d.case.shortTitle, sub: d.case.firm },
-      counts: {} as Record<string, number>,
+      counts: { questions: unanswered(d.inquiries).length } as Record<string, number>,
     };
   }
 }

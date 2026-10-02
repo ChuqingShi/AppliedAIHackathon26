@@ -46,6 +46,7 @@ def test_finds_the_page_and_names_its_document(conn):
     assert (hits[0]["docId"], hits[0]["page"], hits[0]["name"]) == (1, 2, "Hudson valley radiology records")
     assert "**MRI**" in hits[0]["snippet"] and "text" not in hits[0]
     assert "supraspinatus" in search("mri", full=True)[0]["text"]
+    assert search("shoulder mri?", full=True)[0]["complete"] and not search("shoulder x-ray?", full=True)[0]["complete"]
     # The snippet starts where the question's words come closest together.
     assert hits[0]["snippet"].startswith("**MRI** of the left **shoulder**")
     # A document's name counts too, and stemming matches "tears" to "tear".
