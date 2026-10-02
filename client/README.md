@@ -33,4 +33,4 @@ One dashboard, three kinds of user: the law firm, a medical provider, and the cl
 
 - Sign-in is a demo: no passwords, and the session cookie just names a demo account. The "Demo · signed in as" switch in the sidebar signs in as the first account for each role.
 - Clio has no structured offer, demand or target range for this matter, so those stay hidden; provider bill amounts are read from the "Specials tally" note.
-- Calling and uploads only show a toast (documents open from the backend). Messages from the firm to a provider or the client are real (they are sent as questions and tracked); a message from a provider or the client to the firm still only shows a toast.
+- Calling only shows a toast (documents open from the backend, and a provider's uploads really go to the firm). Messages from the firm to a provider or the client are real (they are sent as questions and tracked); a message from a provider or the client to the firm still only shows a toast.
