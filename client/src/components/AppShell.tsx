@@ -222,9 +222,11 @@ export function CaseStatusBadge({ closed }: { closed: string | null }) {
 function frame(d: Dashboard) {
   switch (d.role) {
     case "firm": return {
-      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id, dates: caseDates(d.case),
-        // the client's photo ID beside the case name, firm only
-        photo: d.case.photoIdDoc != null ? { docId: d.case.photoIdDoc, name: d.case.client.name } : null },
+      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id, dates: caseDates(d.case) },
+      // the client's portrait from their photo ID, in its own block above the case (firm only)
+      client: d.case.photoIdDoc != null
+        ? { docId: d.case.photoIdDoc, name: d.case.client.name, age: d.case.client.age }
+        : null,
       counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
     };
     case "provider": return {
@@ -243,15 +245,21 @@ const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider
 function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
   const { dashboard, role, view, openBriefing } = useApp();
   const { user } = dashboard;
-  const { box, counts } = frame(dashboard);
+  const f = frame(dashboard);
+  const { box, counts } = f;
+  const client = "client" in f ? f.client : null;
   return (
     <>
       <div className="logo"><span><Icon name="shield" /></span>CaseBoard</div>
-      <div className="casebox">
-        <div className="casebox-hd">
-          <div><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
-          {box.photo && <PhotoIdThumb docId={box.photo.docId} name={box.photo.name} compact />}
+      {/* The client, with their portrait from the photo ID on file, above the case (firm only). */}
+      {client && (
+        <div className="clientbox">
+          <PhotoIdThumb docId={client.docId} name={client.name} size="sm" />
+          <div><small>Client</small><b>{client.name}</b>{client.age != null && <span>Age {client.age}</span>}</div>
         </div>
+      )}
+      <div className="casebox">
+        <small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span>
         {box.dates && (
           <dl>{box.dates.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
         )}

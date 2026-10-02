@@ -5,3 +5,4 @@ requests
 python-dotenv
 pymupdf
 pytest
+opencv-python-headless<5

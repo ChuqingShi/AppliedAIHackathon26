@@ -157,10 +157,8 @@ export function CardClient({ full }: { full?: boolean }) {
   return (
     <div className="card">
       <div className="hd"><h3>Client</h3>{c.updated && <span className="tag shared" title="The client changed their own details"><Icon name="user" sm />Updated by client {day(c.updated, false)}</span>}{!full && <Go to="client">Full profile</Go>}</div>
-      <div className="person"><span className="av lg">{c.initials}</span><div><b>{c.name}</b><small>{[c.age != null && `Age ${c.age}`, c.dob && `born ${day(c.dob)}`].filter(Boolean).join(" · ")}</small></div>
-        {/* The photo ID on file; it opens the full document. Firm only (see photoIdDoc in types.ts). */}
-        {photoIdDoc != null && <PhotoIdThumb docId={photoIdDoc} name={c.name} />}
-      </div>
+      {/* The client's portrait from their photo ID stands in for the initials when there is one (firm only; see photoIdDoc in types.ts). */}
+      <div className="person">{photoIdDoc != null ? <PhotoIdThumb docId={photoIdDoc} name={c.name} size="lg" fallback={<span className="av lg">{c.initials}</span>} /> : <span className="av lg">{c.initials}</span>}<div><b>{c.name}</b><small>{[c.age != null && `Age ${c.age}`, c.dob && `born ${day(c.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
       <div className="kv"><ContactLines of={c} full={full} /></div>
       <div className="sect">Incident · {incident.date}</div>
       <p style={{ fontSize: 13.5 }}>{incident.summary}{full && incident.location && <> <span className="ink2">{incident.location}.</span></>}</p>

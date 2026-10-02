@@ -6,13 +6,18 @@ import { getSession } from "@/lib/session";
 
 const API = process.env.SAPINI_API_URL ?? "http://127.0.0.1:8000";
 
-export async function firmDocument(id: string, suffix: "" | "/image") {
+export async function firmDocument(id: string, suffix: "" | "/image" | "/photo") {
   const account = await getSession();
   if (!account) return new Response("Sign in to open documents", { status: 401 });
   if (account.role !== "firm") return new Response("Only the law firm can open case documents", { status: 403 });
   if (!/^\d+$/.test(id)) return new Response("Not found", { status: 404 });
 
-  const res = await fetch(`${API}/documents/${id}${suffix}`, { cache: "no-store" });
+  let res: Response;
+  try {
+    res = await fetch(`${API}/documents/${id}${suffix}`, { cache: "no-store" });
+  } catch {
+    return new Response(`The Sapini backend isn't answering at ${API}`, { status: 502 });
+  }
   if (!res.ok) return new Response(await res.text(), { status: res.status });
   return new Response(res.body, {
     headers: {

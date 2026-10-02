@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import type { ReactNode } from "react";
 import type { StatusKind } from "@/data/types";
 import { Icon } from "./Icon";
@@ -30,16 +31,23 @@ export function Rich({ text }: { text: string }) {
   return text.split("**").map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
 }
 
-// The client's photo ID on file, as a small thumbnail that opens the full document.
+// The client's portrait, cut from the photo ID on file (the backend finds the face
+// on the card): a small passport-style photo that opens the full ID when clicked.
+// `size` is "sm" in the sidebar's client block above the case, "lg" in place of the
+// initials on the Client card.
+// If the picture can't be loaded (the backend is restarting, say), it shows
+// `fallback` instead (the initials on the Client card; nothing in the sidebar)
+// rather than a broken image.
 // Firm only: only the firm's record carries photoIdDoc, and the document routes
 // (src/app/api/documents/) refuse anyone else.
-export function PhotoIdThumb({ docId, name, compact }: { docId: number; name: string; compact?: boolean }) {
+export function PhotoIdThumb({ docId, name, size, fallback = null }: { docId: number; name: string; size: "sm" | "lg"; fallback?: ReactNode }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return fallback;
   return (
-    <a className={compact ? "idthumb sm" : "idthumb"} href={`/api/documents/${docId}`} target="_blank" rel="noreferrer" title="Open the photo ID on file">
+    <a className={`idphoto ${size}`} href={`/api/documents/${docId}`} target="_blank" rel="noreferrer" title="From the photo ID on file: click to open it">
       {/* A plain img, not next/image: the optimizer would keep a cached copy of an identity document. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={`/api/documents/${docId}/image`} alt={`Photo ID on file for ${name}`} />
-      {!compact && <small>Photo ID</small>}
+      <img src={`/api/documents/${docId}/photo`} alt={`${name}, from the photo ID on file`} onError={() => setFailed(true)} />
     </a>
   );
 }
