@@ -151,11 +151,31 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, chi
   );
 }
 
+// The firm's key case dates for the sidebar box, in short form: when the case
+// started, when it ended (or that it's still open) and the statute of limitations.
+function caseDates(c: Case): [string, ReactNode][] {
+  const { opened, closed } = c.dates;
+  const d = c.deadline;
+  return ([
+    ["Opened", opened],
+    ["Closed", closed || opened ? <CaseStatusBadge closed={closed} /> : null],
+    ["Deadline", d ? `${d.date}${d.met ? " · met" : d.daysLeft >= 0 ? ` · ${d.daysLeft}d left` : " · passed"}` : "Not set"],
+  ] as [string, ReactNode][]).filter((r) => r[1] != null);
+}
+
+// Whether the case is still running, as a badge: yellow "Still open" while Clio has
+// no close date, green with the close date once it has one. Shared with the Case details card.
+export function CaseStatusBadge({ closed }: { closed: string | null }) {
+  return closed
+    ? <span className="tag closed"><i aria-hidden="true" />{closed}</span>
+    : <span className="tag open"><i aria-hidden="true" />Still open</span>;
+}
+
 // The few places the shell words things differently per role.
 function frame(d: Dashboard) {
   switch (d.role) {
     case "firm": return {
-      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id },
+      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id, dates: caseDates(d.case) },
       counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
     };
     case "provider": return {
@@ -178,7 +198,12 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
   return (
     <>
       <div className="logo"><span><Icon name="shield" /></span>CaseBoard</div>
-      <div className="casebox"><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
+      <div className="casebox">
+        <small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span>
+        {box.dates && (
+          <dl>{box.dates.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
+        )}
+      </div>
       {NAV[role].map(({ id, label, icon }) => (
         <Link key={id} href={`/${id}`} className={view === id ? "nav on" : "nav"}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}

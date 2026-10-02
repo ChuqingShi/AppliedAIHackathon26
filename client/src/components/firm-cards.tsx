@@ -1,7 +1,8 @@
 "use client";
 
+import type { ReactNode } from "react";
 import type { Case, CaseUpdate, Injury } from "@/data/types";
-import { useApp, useFirmCase } from "./AppShell";
+import { CaseStatusBadge, useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
 import { FirmOnly, Go, Status, billsTotal, day, money, moneyK } from "./ui";
 
@@ -163,12 +164,26 @@ export function CardCaseFacts() {
   const c = useFirmCase();
   const d = c.deadline;
   const { policyLimit } = c.financials;
-  // Only the facts Clio has; a missing one is left out rather than shown blank.
+  const { opened, closed, length } = c.dates;
+  // The case's three key dates come first: when it started, when it ended (or that
+  // it hasn't), and the statute of limitations deadline.
+  const dates: [string, ReactNode][] = [
+    ["Case opened", opened],
+    // yellow "Still open" or the green close date, then how long the case ran
+    ["Case closed", closed || opened
+      ? <><CaseStatusBadge closed={closed} />{length && <span className="ink2"> · {closed ? `after ${length}` : `${length} so far`}</span>}</>
+      : null],
+    // The deadline is always listed, so a case without one set in Clio stands out.
+    ["Statute of limitations", d
+      ? `${d.date} · ${d.met ? "met, filed in time" : d.daysLeft >= 0 ? `${d.daysLeft} days left` : `passed ${-d.daysLeft} days ago`}`
+      : "Not set in Clio"],
+  ];
+  // Then the other facts Clio has; a missing one is left out rather than shown blank.
   const rows = ([
+    ...dates,
     ["Defendant", c.defendant], ["Insurer", c.insurer.name], ["Claim number", c.insurer.claim],
     ["Adjuster", c.insurer.adjuster], ["Policy limit", policyLimit != null ? money(policyLimit) : null],
-    [d?.label ?? "Deadline", d ? `${d.date} · ${d.met ? "satisfied" : d.daysLeft >= 0 ? `${d.daysLeft} days left` : `${-d.daysLeft} days ago`}` : null],
-  ] as [string, string | null][]).filter(([, v]) => v);
+  ] as [string, ReactNode][]).filter(([, v]) => v);
   return (
     <div className="card">
       <div className="hd"><h3>Case details</h3><FirmOnly /></div>

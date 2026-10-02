@@ -350,6 +350,12 @@ def build_case(matter_id: int | None = None) -> dict:
                 team_names.append(p["name"])
     team = [{"name": n, "initials": initials(n), "role": "Legal team", "main": i == 0} for i, n in enumerate(team_names)]
 
+    # start and end of the case: the matter's open and close dates in Clio. An open
+    # matter has no close date, so "closed" stays null and the card says "Still open".
+    opened, closed = _d(m.get("open_date")), _d(m.get("close_date"))
+    dates = {"opened": fmt(opened) or None, "closed": fmt(closed) or None,
+             "length": _length(opened, closed or today) if opened else None}
+
     last = (cl.get("last_name") or client["name"].split(" ")[-1])
     return {
         "id": m.get("display_number") or str(m["id"]),
@@ -359,6 +365,7 @@ def build_case(matter_id: int | None = None) -> dict:
         "shortTitle": f"{last} v. {defendant.split()[0]}" if defendant else desc,
         "firm": FIRM_NAME,
         "stages": stages, "stageIndex": idx,
+        "dates": dates,
         "client": client, "incident": incident, "injuries": injuries,
         "financials": financials,
         "defendant": defendant,
@@ -370,6 +377,14 @@ def build_case(matter_id: int | None = None) -> dict:
         "team": team, "user": team[0] if team else {"name": "Firm user", "initials": "FU", "role": "Legal team"},
         "providerFiles": provider_files,
     }
+
+
+def _length(start: date, end: date) -> str:
+    """How long between two dates, in words: "3 years, 4 months"."""
+    months = (end.year - start.year) * 12 + end.month - start.month - (end.day < start.day)
+    years, months = divmod(max(months, 0), 12)
+    parts = [f"{n} {unit}{'s' if n != 1 else ''}" for n, unit in ((years, "year"), (months, "month")) if n]
+    return ", ".join(parts) or "less than a month"
 
 
 def _request(t: dict, provider: str, today: date) -> dict:

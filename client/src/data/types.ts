@@ -58,6 +58,9 @@ export interface Case extends CaseFrame {
   title: string;
   shortTitle: string;
   defendant: string | null;
+  // When the case started and ended: the matter's open and close dates in Clio.
+  // `closed` is null while the case is open; `length` is how long it has run ("3 years, 4 months").
+  dates: { opened: string | null; closed: string | null; length: string | null };
   client: Client;
   incident: { date: string; type: string; location: string; summary: string };
   injuries: Injury[];
