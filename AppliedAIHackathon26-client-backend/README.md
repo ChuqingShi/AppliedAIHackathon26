@@ -38,6 +38,7 @@ The CaseBoard client (`../client`) reads everything from these; nothing on the d
 - `GET` / `PUT /users/{user_id}/overview`: how one dashboard user arranged their overview (`null` until they change it). Stored in the `overview_layouts` table, so it follows them to any computer they sign in on.
 - `GET` / `PUT /cases/{case_id}/client-details`: what the client corrected about their own personal details (`null` until they change something). Stored in the `client_details` table, because Clio is read-only; the dashboard lays it over the client in `/case`, so the firm and the providers see it too.
 
+- `GET` / `POST` / `DELETE /users/{user_id}/chat?case_id=`: what one dashboard user asked the assistant and what it answered (the last 500 messages per case), so they can go back over it. Stored in the `chat_history` table.
 - `GET` / `POST /cases/{case_id}/inquiries`, `PATCH /inquiries/{id}`: the questions the firm sends to a medical provider or the client when the case doesn't hold an answer, and how far each has got (sent, seen, answered, closed). Stored in the `inquiries` table; the dashboard decides who may send, see and answer which.
 
 Optional: set `FIRM_NAME` in `.env` to name the firm on the dashboard (Clio's matter data doesn't include it).
