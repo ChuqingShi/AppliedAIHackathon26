@@ -3,7 +3,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import type { StatusKind } from "@/data/types";
-import { useApp } from "./AppShell";
 import { Icon } from "./Icon";
 
 export { billsTotal, money, moneyK } from "./format";
@@ -21,10 +20,9 @@ export function FirmOnly() {
   return <span className="tag firm"><Icon name="lock" sm />Firm only</span>;
 }
 
-// Link to another view of the dashboard. Also leaves search, like the nav does.
+// Link to another view of the dashboard.
 export function Go({ to, className = "link", children }: { to: string; className?: string; children: ReactNode }) {
-  const { setQuery } = useApp();
-  return <Link href={`/${to}`} className={className} onClick={() => setQuery("")}>{children}</Link>;
+  return <Link href={`/${to}`} className={className}>{children}</Link>;
 }
 
 // Text with **bold** marks, as the assistant writes it.
