@@ -1,9 +1,16 @@
 import type { IconName } from "@/components/Icon";
 
-export type Role = "firm" | "provider";
+export type Role = "firm" | "provider" | "client";
 export interface NavItem { id: string; label: string; icon: IconName }
 
-// Routes are /<role>/<view>, e.g. /firm/overview, /provider/team.
+export const ROLE_LABEL: Record<Role, string> = {
+  firm: "Law firm",
+  provider: "Medical provider",
+  client: "Client",
+};
+
+// Routes are /<view>, e.g. /overview, /financials. Which views exist depends on
+// the signed-in user's role; a view that isn't in their list is a 404.
 export const NAV: Record<Role, NavItem[]> = {
   firm: [
     { id: "overview", label: "Overview", icon: "grid" },
@@ -21,6 +28,8 @@ export const NAV: Record<Role, NavItem[]> = {
     { id: "progress", label: "Case progress", icon: "clock" },
     { id: "team", label: "Legal team", icon: "users" },
   ],
+  // Not designed yet; the lawyers' dashboard comes first.
+  client: [
+    { id: "overview", label: "Overview", icon: "grid" },
+  ],
 };
-
-export const isRole = (role: unknown): role is Role => role === "firm" || role === "provider";

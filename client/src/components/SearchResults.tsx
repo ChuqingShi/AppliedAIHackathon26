@@ -1,7 +1,6 @@
 "use client";
 
-import { CASE, P } from "@/data/case";
-import type { Role } from "@/data/nav";
+import type { Dashboard } from "@/data/types";
 import { useApp } from "./AppShell";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
@@ -9,30 +8,35 @@ import { Go, money } from "./ui";
 
 interface Hit { label: string; sub: string; go: string; icon: IconName }
 
-// Search only looks at what the current role is allowed to see.
-function searchIndex(role: Role): Hit[] {
-  if (role === "firm") {
+// Search only looks at the record the signed-in role was given.
+function searchIndex(d: Dashboard): Hit[] {
+  if (d.role === "firm") {
+    const c = d.case;
     return [
-      ...CASE.documents.map((d) => ({ label: d.name, sub: `Document · ${d.kind} · ${d.date}`, go: "documents", icon: "doc" as const })),
-      ...CASE.tasks.map((t) => ({ label: t.title, sub: `To-do · ${t.who} · ${t.due}`, go: "todo", icon: "task" as const })),
-      ...CASE.providers.map((p) => ({ label: p.name, sub: `Medical provider · ${money(p.billed)}`, go: "providers", icon: "users" as const })),
-      ...CASE.updates.map((u) => ({ label: u.firm.t, sub: `Update · ${u.date}`, go: "updates", icon: "clock" as const })),
-      { label: CASE.client.name, sub: `Client · ${CASE.client.phone}`, go: "client", icon: "user" },
+      ...c.documents.map((doc) => ({ label: doc.name, sub: `Document · ${doc.kind} · ${doc.date}`, go: "documents", icon: "doc" as const })),
+      ...c.tasks.map((t) => ({ label: t.title, sub: `To-do · ${t.who} · ${t.due}`, go: "todo", icon: "task" as const })),
+      ...c.providers.map((p) => ({ label: p.name, sub: `Medical provider · ${money(p.billed)}`, go: "providers", icon: "users" as const })),
+      ...c.updates.map((u) => ({ label: u.firm.t, sub: `Update · ${u.date}`, go: "updates", icon: "clock" as const })),
+      { label: c.client.name, sub: `Client · ${c.client.phone}`, go: "client", icon: "user" },
       { label: "Offer, demand and target range", sub: "Financials", go: "financials", icon: "dollar" },
     ];
   }
-  return [
-    ...P.documents.map((d) => ({ label: d.name, sub: `Document · ${d.date}`, go: "records", icon: "doc" as const })),
-    ...P.updates.map((u) => ({ label: u.t, sub: `Update · ${u.date}`, go: "progress", icon: "clock" as const })),
-    ...P.team.map((m) => ({ label: m.name, sub: `Legal team · ${m.role}`, go: "team", icon: "users" as const })),
-    ...P.injuries.map((j) => ({ label: j.name, sub: `Injury · ${j.status}`, go: "patient", icon: "user" as const })),
-  ];
+  if (d.role === "provider") {
+    const p = d.case;
+    return [
+      ...p.documents.map((doc) => ({ label: doc.name, sub: `Document · ${doc.date}`, go: "records", icon: "doc" as const })),
+      ...p.updates.map((u) => ({ label: u.t, sub: `Update · ${u.date}`, go: "progress", icon: "clock" as const })),
+      ...p.team.map((m) => ({ label: m.name, sub: `Legal team · ${m.role}`, go: "team", icon: "users" as const })),
+      ...p.injuries.map((j) => ({ label: j.name, sub: `Injury · ${j.status}`, go: "patient", icon: "user" as const })),
+    ];
+  }
+  return [];
 }
 
 export function SearchResults() {
-  const { role, query } = useApp();
+  const { dashboard, query } = useApp();
   const q = query.trim().toLowerCase();
-  const hits = searchIndex(role).filter((x) => (x.label + " " + x.sub).toLowerCase().includes(q));
+  const hits = searchIndex(dashboard).filter((x) => (x.label + " " + x.sub).toLowerCase().includes(q));
   return (
     <>
       <h2>Results for “{query.trim()}”</h2>

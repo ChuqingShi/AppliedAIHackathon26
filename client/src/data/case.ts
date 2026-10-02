@@ -1,67 +1,17 @@
 // Sample data for the prototype. Everything here is fictional.
 //
-// CASE is the full record the law firm sees. forProvider() builds the trimmed
-// record a medical provider sees. In the real product that trimming has to
-// happen on the server: a provider's browser should never receive firm-only data.
+// CASE is the full record the law firm sees. forProvider() and forClient()
+// build the trimmed records the other two roles see. This module only runs on
+// the server, so a provider's or client's browser never receives firm-only data.
 
-import type { IconName } from "@/components/Icon";
-
-export type StatusKind = "good" | "warn";
-
-export interface Stage { name: string; date: string }
-export interface Injury { name: string; status: string; by: string }
-export interface Provider { id: string; name: string; billed: number; records: StatusKind; bill: StatusKind; contact: string }
-export interface Task { title: string; who: string; due: string; urgent?: boolean }
-export interface CaseDocument { name: string; kind: string; date: string; important?: boolean; pending?: boolean }
-export interface UpdateText { t: string; s: string }
-export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }
-export interface TeamMember { name: string; initials: string; role: string; main?: boolean }
-export interface User { name: string; initials: string; role: string }
-export interface BillLine { name: string; amount: number }
-export interface ProviderDocument { name: string; date: string; status: StatusKind; label: string }
-export interface ProviderRequest { title: string; detail: string; due: string; daysLeft: number }
-export interface ProviderFile {
-  user: User;
-  patientSince: string;
-  billLines: BillLine[];
-  documents: ProviderDocument[];
-  requests: ProviderRequest[];
-}
-
-export interface Case {
-  id: string;
-  title: string;
-  firm: string;
-  stages: Stage[];
-  stageIndex: number;
-  client: {
-    name: string; initials: string; dob: string; age: number;
-    phone: string; email: string; address: string;
-    language: string; bestTime: string; occupation: string;
-  };
-  incident: { date: string; type: string; location: string; summary: string };
-  injuries: Injury[];
-  financials: {
-    offer: number; offerDate: string;
-    demand: number; demandDate: string;
-    targetLow: number; targetHigh: number;
-    counter: number; counterDue: string;
-    policyLimit: number;
-    costs: number; feeShare: number;
-  };
-  insurer: { name: string; claim: string; adjuster: string };
-  deadline: { label: string; date: string; daysLeft: number };
-  providers: Provider[];
-  tasks: Task[];
-  documents: CaseDocument[];
-  updates: CaseUpdate[];
-  team: TeamMember[];
-  providerFiles: Record<string, ProviderFile>;
-}
+import "server-only";
+import type { Case, ClientCase, ProviderCase } from "./types";
 
 export const CASE: Case = {
   id: "PI-2026-0142",
   title: "Alvarez v. Coastal Freight Lines",
+  shortTitle: "Alvarez v. Coastal Freight",
+  defendant: "Coastal Freight Lines",
   firm: "Whitfield Lee LLP",
 
   stages: [
@@ -172,7 +122,6 @@ export const CASE: Case = {
   // what each provider has on file with the firm
   providerFiles: {
     summit: {
-      user: { name: "Jenna Brooks", initials: "JB", role: "Summit Orthopedics · Billing" },
       patientSince: "Feb 20, 2026",
       billLines: [
         { name: "Shoulder surgery (arthroscopic)", amount: 13500 },
@@ -195,13 +144,12 @@ export const CASE: Case = {
 
 // The record a provider is allowed to see. Whitelist only: anything not copied
 // here (financials, strategy, tasks, other providers, firm-only updates) stays out.
-export function forProvider(c: Case, providerId: string) {
+export function forProvider(c: Case, providerId: string): ProviderCase {
   const me = c.providers.find((p) => p.id === providerId)!;
   const file = c.providerFiles[providerId];
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     provider: { id: me.id, name: me.name },
-    user: file.user,
     patient: { name: c.client.name, initials: c.client.initials, dob: c.client.dob, age: c.client.age, phone: c.client.phone, since: file.patientSince },
     incident: { date: c.incident.date, type: c.incident.type, summary: c.incident.summary },
     injuries: c.injuries,
@@ -213,11 +161,12 @@ export function forProvider(c: Case, providerId: string) {
     team: c.team,
   };
 }
-export type ProviderCase = ReturnType<typeof forProvider>;
 
-export const PROVIDER_ID = "summit"; // the provider account used for the demo
-export const FIRM_USER: User = { name: "Dana Whitfield", initials: "DW", role: "Lead attorney" };
-
-export const P = forProvider(CASE, PROVIDER_ID);
-export const F = CASE.financials;
-export const billsTotal = CASE.providers.reduce((sum, p) => sum + p.billed, 0);
+// The record the client (plaintiff) is allowed to see. Same rule: whitelist only.
+// Their dashboard isn't designed yet, so this is just what the shared shell shows.
+export function forClient(c: Case): ClientCase {
+  return {
+    id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
+    title: c.title, shortTitle: c.shortTitle,
+  };
+}

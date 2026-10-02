@@ -1,27 +1,32 @@
 "use client";
 
-// CaseBoard: one dashboard, two roles. The shell owns everything that outlives
-// a single view: search, the assistant's chat log, the message dialog and toasts.
+// CaseBoard: one dashboard, three roles. What it shows comes from `dashboard`,
+// the record the server built for whoever is signed in. The shell owns
+// everything that outlives a single view: search, the assistant's chat log,
+// the message dialog and toasts.
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { CASE, FIRM_USER, P } from "@/data/case";
-import { NAV, isRole } from "@/data/nav";
+import { askAssistant, login, logout } from "@/app/actions";
+import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import { BRIEFING, answer } from "./assistant";
+import type { Case, Dashboard, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchResults } from "./SearchResults";
 
-export interface ChatMessage { me?: boolean; body: ReactNode }
+export interface ChatMessage { me?: boolean; text: string }
+export interface DemoAccount { id: string; role: Role }
 
 interface App {
+  dashboard: Dashboard;
   role: Role;
   view: string;
   query: string;
   setQuery: (q: string) => void;
   chat: ChatMessage[];
+  thinking: boolean;
   ask: (question: string) => void;
   toast: (text: string) => void;
   openMessage: (name: string) => void;
@@ -35,10 +40,23 @@ export function useApp() {
   return app;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
-  const params = useParams<{ role?: string; view?: string }>();
+// The signed-in role's record. Each role's cards only ever render for that role.
+export function useFirmCase(): Case {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "firm") throw new Error("This card is for the law firm only");
+  return dashboard.case;
+}
+
+export function useProviderCase(): ProviderCase {
+  const { dashboard } = useApp();
+  if (dashboard.role !== "provider") throw new Error("This card is for medical providers only");
+  return dashboard.case;
+}
+
+export function AppShell({ dashboard, demoAccounts, children }: { dashboard: Dashboard; demoAccounts: DemoAccount[]; children: ReactNode }) {
+  const params = useParams<{ view?: string }>();
   const pathname = usePathname();
-  const role: Role = isRole(params.role) ? params.role : "firm";
+  const role = dashboard.role;
   const view = params.view ?? "overview";
 
   // The search belongs to the page it was typed on, so back/forward clears it.
@@ -46,11 +64,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const query = search.path === pathname ? search.text : "";
   const setQuery = useCallback((text: string) => setSearch({ text, path: pathname }), [pathname]);
 
-  const [chat, setChat] = useState<ChatMessage[]>([{ body: BRIEFING }]);
-  const ask = useCallback((question: string) => {
+  const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
+  const [asking, setAsking] = useState(0);
+  const ask = useCallback(async (question: string) => {
     const q = question.trim();
     if (!q) return;
-    setChat((log) => [...log, { me: true, body: q }, { body: answer(q) }]);
+    setChat((log) => [...log, { me: true, text: q }]);
+    setAsking((n) => n + 1);
+    try {
+      const reply = await askAssistant(q);
+      setChat((log) => [...log, { text: reply }]);
+    } catch {
+      setChat((log) => [...log, { text: "The assistant couldn't be reached. Try again in a moment." }]);
+    } finally {
+      setAsking((n) => n - 1);
+    }
   }, []);
 
   const [toastState, setToastState] = useState({ text: "", show: false });
@@ -79,16 +107,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ role, view, query, setQuery, chat, ask, toast, openMessage: setMessageTo }),
-    [role, view, query, setQuery, chat, ask, toast],
+    () => ({ dashboard, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
+    [dashboard, role, view, query, setQuery, chat, asking, ask, toast],
   );
 
   return (
     <AppContext.Provider value={app}>
       <div className="app">
-        <aside className="side"><Sidebar /></aside>
+        <aside className="side"><Sidebar demoAccounts={demoAccounts} /></aside>
         <main className="main" ref={main}>
-          <StickyHeader role={role} />
+          <StickyHeader />
           <div className="content">{query.trim() ? <SearchResults /> : children}</div>
         </main>
       </div>
@@ -109,13 +137,36 @@ export function AppShell({ children }: { children: ReactNode }) {
   );
 }
 
-function Sidebar() {
-  const { role, view, query, setQuery } = useApp();
-  const firm = role === "firm";
-  const user = firm ? FIRM_USER : P.user;
-  const counts: Record<string, number> = firm
-    ? { todo: CASE.tasks.filter((t) => t.urgent).length }
-    : { records: P.requests.length };
+// The few places the shell words things differently per role.
+function frame(d: Dashboard) {
+  switch (d.role) {
+    case "firm": return {
+      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id },
+      heading: d.case.title,
+      meta: `Case ${d.case.id} · Client ${d.case.client.name}`,
+      counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
+    };
+    case "provider": return {
+      box: { label: "Patient", title: d.case.patient.name, sub: d.case.firm },
+      heading: `${d.case.patient.name} — injury case`,
+      meta: `${d.case.firm} · Case ${d.case.id}`,
+      counts: { records: d.case.requests.length } as Record<string, number>,
+    };
+    case "client": return {
+      box: { label: "Your case", title: d.case.shortTitle, sub: d.case.firm },
+      heading: d.case.title,
+      meta: `${d.case.firm} · Case ${d.case.id}`,
+      counts: {} as Record<string, number>,
+    };
+  }
+}
+
+const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider", client: "Client" };
+
+function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
+  const { dashboard, role, view, query, setQuery } = useApp();
+  const { user } = dashboard;
+  const { box, counts } = frame(dashboard);
   const searching = query.trim() !== "";
   return (
     <>
@@ -124,42 +175,45 @@ function Sidebar() {
         <Icon name="search" />
         <input type="search" placeholder="Search this case" value={query} onChange={(e) => setQuery(e.target.value)} autoComplete="off" />
       </label>
-      <div className="casebox">
-        {firm
-          ? <><small>Case</small><b>Alvarez v. Coastal Freight</b><span>{CASE.id}</span></>
-          : <><small>Patient</small><b>{P.patient.name}</b><span>{P.firm}</span></>}
-      </div>
+      <div className="casebox"><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
       {NAV[role].map(({ id, label, icon }) => (
-        <Link key={id} href={`/${role}/${id}`} className={view === id && !searching ? "nav on" : "nav"} onClick={() => setQuery("")}>
+        <Link key={id} href={`/${id}`} className={view === id && !searching ? "nav on" : "nav"} onClick={() => setQuery("")}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}
         </Link>
       ))}
       <div className="foot">
-        <div className="demo">
+        {/* Demo shortcut: signs in as the sample account for each role. */}
+        <form className="demo" action={login}>
           <small>Demo · signed in as</small>
           <div className="seg">
-            <Link href="/firm/overview" className={firm ? "on" : ""}>Law firm</Link>
-            <Link href="/provider/overview" className={firm ? "" : "on"}>Medical provider</Link>
+            {demoAccounts.map((a) => (
+              <button key={a.id} name="account" value={a.id} className={a.id === user.id ? "on" : ""} aria-pressed={a.id === user.id}>{SHORT_ROLE[a.role]}</button>
+            ))}
           </div>
+        </form>
+        <div className="who">
+          <span className="av">{user.initials}</span>
+          <div>{user.name}<small>{user.title}</small></div>
+          <form action={logout}><button className="out" aria-label="Sign out" title="Sign out"><Icon name="logout" /></button></form>
         </div>
-        <div className="who"><span className="av">{user.initials}</span><div>{user.name}<small>{user.role}</small></div></div>
       </div>
     </>
   );
 }
 
-function StickyHeader({ role }: { role: Role }) {
-  const firm = role === "firm";
-  const s = CASE.stageIndex;
+function StickyHeader() {
+  const { dashboard } = useApp();
+  const { heading, meta } = frame(dashboard);
+  const { stages, stageIndex: s } = dashboard.case;
   return (
     <div className="stick">
       <div className="sh">
-        <h1>{firm ? CASE.title : `${P.patient.name} — injury case`}</h1>
-        <span className="meta">{firm ? `Case ${CASE.id} · Client ${CASE.client.name}` : `${P.firm} · Case ${P.id}`}</span>
-        <span className="chip">Stage {s + 1} of {CASE.stages.length} · {CASE.stages[s].name}</span>
+        <h1>{heading}</h1>
+        <span className="meta">{meta}</span>
+        <span className="chip">Stage {s + 1} of {stages.length} · {stages[s].name}</span>
       </div>
-      <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${CASE.stages.length}, ${CASE.stages[s].name}`}>
-        {CASE.stages.map((st, i) => (
+      <div className="prog" role="img" aria-label={`Case progress: stage ${s + 1} of ${stages.length}, ${stages[s].name}`}>
+        {stages.map((st, i) => (
           <div key={st.name} className={`step ${i < s ? "done" : i === s ? "now" : "todo"}`}>
             <div className="node">{i < s ? <Icon name="check" /> : i + 1}</div>
             <div className="nm">{st.name}</div><div className="dt">{st.date}</div>

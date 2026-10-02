@@ -39,3 +39,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# the repo-root .gitignore (Python template) ignores every lib/; ours is source
+!/src/lib/

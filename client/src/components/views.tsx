@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { Role } from "@/data/nav";
+import { useApp } from "./AppShell";
 import {
   CardAssistant, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
   CardFinancials, CardProviderBills, CardTasks, CardUpdates,
@@ -36,8 +37,19 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     progress: () => <><h2>Case progress</h2><div className="grid g-wide"><CardProviderUpdates /><CardProgress /></div></>,
     team: () => <><h2>Legal team</h2><CardTeam full /></>,
   },
+  // Placeholder until the client's dashboard is designed.
+  client: {
+    overview: () => (
+      <div className="card">
+        <div className="hd"><h3>Your case</h3></div>
+        <p className="lead">Your dashboard is still being built. For now, the progress bar above shows where your case stands.</p>
+      </div>
+    ),
+  },
 };
 
-export function View({ role, view }: { role: Role; view: string }) {
+// The view comes from the URL, the role from who is signed in.
+export function View({ view }: { view: string }) {
+  const { role } = useApp();
   return (VIEWS[role][view] ?? VIEWS[role].overview)();
 }

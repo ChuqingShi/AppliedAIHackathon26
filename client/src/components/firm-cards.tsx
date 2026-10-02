@@ -2,23 +2,23 @@
 
 import { useEffect, useRef } from "react";
 import type { FormEvent } from "react";
-import { CASE, F, billsTotal } from "@/data/case";
-import type { CaseUpdate } from "@/data/case";
-import { useApp } from "./AppShell";
-import { SUGGESTED } from "./assistant";
+import type { Case, CaseUpdate, Injury } from "@/data/types";
+import { useApp, useFirmCase } from "./AppShell";
 import { Icon } from "./Icon";
-import { FirmOnly, Go, Status, money, moneyK } from "./ui";
+import { FirmOnly, Go, Rich, Status, billsTotal, money, moneyK } from "./ui";
 
-export function InjuriesList({ withProvider }: { withProvider?: boolean }) {
-  return CASE.injuries.map((j) => (
+const SUGGESTED = ["What changed this week?", "How far apart are we?", "What's still missing?", "What's due next?"];
+
+export function InjuriesList({ injuries, withProvider }: { injuries: Injury[]; withProvider?: boolean }) {
+  return injuries.map((j) => (
     <div className="inj" key={j.name}><div>{j.name}<small>{j.status}{withProvider ? ` · treated by ${j.by}` : ""}</small></div></div>
   ));
 }
 
 export function CardAssistant() {
-  const { chat, ask } = useApp();
+  const { chat, thinking, ask } = useApp();
   const log = useRef<HTMLDivElement>(null);
-  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat]);
+  useEffect(() => { log.current?.scrollTo(0, log.current.scrollHeight); }, [chat, thinking]);
 
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -30,8 +30,9 @@ export function CardAssistant() {
   return (
     <div className="card ai">
       <div className="hd"><h3><Icon name="spark" /> Ask about this case</h3><FirmOnly /></div>
-      <div className="log" ref={log}>
-        {chat.map((m, i) => <div key={i} className={m.me ? "bubble me" : "bubble"}>{m.body}</div>)}
+      <div className="log" ref={log} aria-live="polite">
+        {chat.map((m, i) => <div key={i} className={m.me ? "bubble me" : "bubble"}><Rich text={m.text} /></div>)}
+        {thinking && <div className="bubble wait">Looking at the case…</div>}
       </div>
       <div className="chips">{SUGGESTED.map((q) => <button key={q} onClick={() => ask(q)}>{q}</button>)}</div>
       <form className="ask" onSubmit={submit}>
@@ -42,50 +43,55 @@ export function CardAssistant() {
   );
 }
 
-function PositionAxis() {
-  const pct = (v: number) => `${(v / F.policyLimit) * 100}%`;
+function PositionAxis({ f }: { f: Case["financials"] }) {
+  const pct = (v: number) => `${(v / f.policyLimit) * 100}%`;
   return (
-    <div className="axis" role="img" aria-label={`Offer ${money(F.offer)}, target ${money(F.targetLow)} to ${money(F.targetHigh)}, planned counter ${money(F.counter)}, demand ${money(F.demand)}, policy limit ${money(F.policyLimit)}`}>
+    <div className="axis" role="img" aria-label={`Offer ${money(f.offer)}, target ${money(f.targetLow)} to ${money(f.targetHigh)}, planned counter ${money(f.counter)}, demand ${money(f.demand)}, policy limit ${money(f.policyLimit)}`}>
       <div className="trk" />
-      <div className="band" style={{ left: pct(F.targetLow), width: pct(F.targetHigh - F.targetLow) }} title={`Target range: ${money(F.targetLow)} – ${money(F.targetHigh)}`} />
-      <div className="mk" style={{ left: pct(F.offer) }} title={`Their offer: ${money(F.offer)}`} />
-      <div className="mk plan" style={{ left: pct(F.counter) }} title={`Planned counter: ${money(F.counter)}`} />
-      <div className="mk" style={{ left: pct(F.demand) }} title={`Our demand: ${money(F.demand)}`} />
-      <div className="mk end" style={{ left: "100%" }} title={`Policy limit: ${money(F.policyLimit)}`} />
+      <div className="band" style={{ left: pct(f.targetLow), width: pct(f.targetHigh - f.targetLow) }} title={`Target range: ${money(f.targetLow)} – ${money(f.targetHigh)}`} />
+      <div className="mk" style={{ left: pct(f.offer) }} title={`Their offer: ${money(f.offer)}`} />
+      <div className="mk plan" style={{ left: pct(f.counter) }} title={`Planned counter: ${money(f.counter)}`} />
+      <div className="mk" style={{ left: pct(f.demand) }} title={`Our demand: ${money(f.demand)}`} />
+      <div className="mk end" style={{ left: "100%" }} title={`Policy limit: ${money(f.policyLimit)}`} />
       <div className="lbl dn l" style={{ left: 0 }}><b>$0</b></div>
-      <div className="lbl dn" style={{ left: pct(F.offer) }}><b>{moneyK(F.offer)}</b>Their offer</div>
-      <div className="lbl up" style={{ left: pct((F.targetLow + F.targetHigh) / 2) }}><b>{moneyK(F.targetLow)} – {moneyK(F.targetHigh)}</b>Our target</div>
-      <div className="lbl dn" style={{ left: pct(F.counter) }}><b>{moneyK(F.counter)}</b>Planned counter</div>
-      <div className="lbl up" style={{ left: `calc(${pct(F.demand)} + 1.5%)` }}><b>{moneyK(F.demand)}</b>Our demand</div>
-      <div className="lbl up r" style={{ left: "100%" }}><b>{moneyK(F.policyLimit)}</b>Policy limit</div>
+      <div className="lbl dn" style={{ left: pct(f.offer) }}><b>{moneyK(f.offer)}</b>Their offer</div>
+      <div className="lbl up" style={{ left: pct((f.targetLow + f.targetHigh) / 2) }}><b>{moneyK(f.targetLow)} – {moneyK(f.targetHigh)}</b>Our target</div>
+      <div className="lbl dn" style={{ left: pct(f.counter) }}><b>{moneyK(f.counter)}</b>Planned counter</div>
+      <div className="lbl up" style={{ left: `calc(${pct(f.demand)} + 1.5%)` }}><b>{moneyK(f.demand)}</b>Our demand</div>
+      <div className="lbl up r" style={{ left: "100%" }}><b>{moneyK(f.policyLimit)}</b>Policy limit</div>
     </div>
   );
 }
 
 export function CardFinancials({ full }: { full?: boolean }) {
+  const c = useFirmCase();
+  const f = c.financials;
   return (
     <div className="card">
       <div className="hd"><h3>Case financials</h3><FirmOnly />{!full && <Go to="financials">Full breakdown</Go>}</div>
       <div className="stats" style={full ? undefined : { gridTemplateColumns: "repeat(2,minmax(0,1fr))" }}>
-        <div className="stat hero"><div className="lb">Their latest offer</div><div className="val">{money(F.offer)}</div><div className="sub">{F.offerDate} · {Math.round((F.offer / F.demand) * 100)}% of our demand</div></div>
-        <div className="stat"><div className="lb">Our demand</div><div className="val">{money(F.demand)}</div><div className="sub">Sent {F.demandDate}</div></div>
-        <div className="stat"><div className="lb">Our target range</div><div className="val rng">{moneyK(F.targetLow)} – {moneyK(F.targetHigh)}</div><div className="sub">Settlement goal</div></div>
-        <div className="stat"><div className="lb">Medical bills</div><div className="val">{money(billsTotal)}</div><div className="sub">{CASE.providers.length} providers on lien</div></div>
+        <div className="stat hero"><div className="lb">Their latest offer</div><div className="val">{money(f.offer)}</div><div className="sub">{f.offerDate} · {Math.round((f.offer / f.demand) * 100)}% of our demand</div></div>
+        <div className="stat"><div className="lb">Our demand</div><div className="val">{money(f.demand)}</div><div className="sub">Sent {f.demandDate}</div></div>
+        <div className="stat"><div className="lb">Our target range</div><div className="val rng">{moneyK(f.targetLow)} – {moneyK(f.targetHigh)}</div><div className="sub">Settlement goal</div></div>
+        <div className="stat"><div className="lb">Medical bills</div><div className="val">{money(billsTotal(c))}</div><div className="sub">{c.providers.length} providers on lien</div></div>
       </div>
-      <PositionAxis />
-      <div className="callout"><Icon name="target" /><span><b>Gap to close: {money(F.targetLow - F.offer)}.</b> Counter of {money(F.counter)} goes out {F.counterDue}.</span></div>
+      <PositionAxis f={f} />
+      <div className="callout"><Icon name="target" /><span><b>Gap to close: {money(f.targetLow - f.offer)}.</b> Counter of {money(f.counter)} goes out {f.counterDue}.</span></div>
     </div>
   );
 }
 
 export function CardBreakdown() {
-  const mid = (F.targetLow + F.targetHigh) / 2;
-  const fee = mid * F.feeShare;
+  const c = useFirmCase();
+  const f = c.financials;
+  const bills = billsTotal(c);
+  const mid = (f.targetLow + f.targetHigh) / 2;
+  const fee = mid * f.feeShare;
   const parts = [
-    { label: "Medical liens", v: billsTotal, color: "var(--s1)" },
+    { label: "Medical liens", v: bills, color: "var(--s1)" },
     { label: "Attorney fee (⅓)", v: fee, color: "var(--s2)" },
-    { label: "Case costs", v: F.costs, color: "var(--s3)" },
-    { label: "Client receives", v: mid - fee - F.costs - billsTotal, color: "var(--s4)" },
+    { label: "Case costs", v: f.costs, color: "var(--s3)" },
+    { label: "Client receives", v: mid - fee - f.costs - bills, color: "var(--s4)" },
   ];
   return (
     <div className="card">
@@ -99,13 +105,14 @@ export function CardBreakdown() {
 
 export function CardProviderBills({ withMessage }: { withMessage?: boolean }) {
   const { openMessage } = useApp();
-  const max = Math.max(...CASE.providers.map((p) => p.billed));
+  const c = useFirmCase();
+  const max = Math.max(...c.providers.map((p) => p.billed));
   const cols = withMessage ? undefined : { gridTemplateColumns: "minmax(0,1.4fr) 190px 110px 130px" };
   return (
     <div className="card">
-      <div className="hd"><h3>Medical bills by provider</h3><span className="muted" style={{ fontSize: 13 }}>Total {money(billsTotal)}</span></div>
+      <div className="hd"><h3>Medical bills by provider</h3><span className="muted" style={{ fontSize: 13 }}>Total {money(billsTotal(c))}</span></div>
       <div className="row r-prov th" style={cols}><span>Provider</span><span>Billed</span><span>Records</span><span>Final bill</span>{withMessage && <span />}</div>
-      {CASE.providers.map((p) => (
+      {c.providers.map((p) => (
         <div className="row r-prov" style={cols} key={p.id}>
           <div>{p.name}{withMessage && <small>{p.contact}</small>}</div>
           <div className="barcell"><span className="num">{money(p.billed)}</span><div style={{ flex: 1 }}><div className="bar" style={{ width: `${(p.billed / max) * 100}%` }} title={`${p.name}: ${money(p.billed)}`} /></div></div>
@@ -120,7 +127,7 @@ export function CardProviderBills({ withMessage }: { withMessage?: boolean }) {
 
 export function CardClient({ full }: { full?: boolean }) {
   const { toast, openMessage } = useApp();
-  const c = CASE.client;
+  const { client: c, incident, injuries } = useFirmCase();
   return (
     <div className="card">
       <div className="hd"><h3>Client</h3>{!full && <Go to="client">Full profile</Go>}</div>
@@ -131,10 +138,10 @@ export function CardClient({ full }: { full?: boolean }) {
         <Icon name="clock" /><span>Best time: {c.bestTime}</span>
         {full && <><Icon name="pin" /><span>{c.address}</span><Icon name="msg" /><span>Speaks {c.language}</span><Icon name="user" /><span>{c.occupation}</span></>}
       </div>
-      <div className="sect">Incident · {CASE.incident.date}</div>
-      <p style={{ fontSize: 13.5 }}>{CASE.incident.summary}{full && <> <span className="ink2">{CASE.incident.location}.</span></>}</p>
+      <div className="sect">Incident · {incident.date}</div>
+      <p style={{ fontSize: 13.5 }}>{incident.summary}{full && <> <span className="ink2">{incident.location}.</span></>}</p>
       <div className="sect">Injuries</div>
-      <InjuriesList withProvider={full} />
+      <InjuriesList injuries={injuries} withProvider={full} />
       <div className="actions">
         <button className="btn" onClick={() => toast("Calling isn't wired up in the prototype")}><Icon name="phone" />Call</button>
         <button className="btn ghost" onClick={() => openMessage(c.name)}><Icon name="msg" />Message</button>
@@ -144,10 +151,11 @@ export function CardClient({ full }: { full?: boolean }) {
 }
 
 export function CardCaseFacts() {
+  const c = useFirmCase();
   const rows = [
-    ["Defendant", "Coastal Freight Lines"], ["Insurer", CASE.insurer.name], ["Claim number", CASE.insurer.claim],
-    ["Adjuster", CASE.insurer.adjuster], ["Policy limit", money(F.policyLimit)],
-    [CASE.deadline.label, `${CASE.deadline.date} · ${CASE.deadline.daysLeft} days left`],
+    ["Defendant", c.defendant], ["Insurer", c.insurer.name], ["Claim number", c.insurer.claim],
+    ["Adjuster", c.insurer.adjuster], ["Policy limit", money(c.financials.policyLimit)],
+    [c.deadline.label, `${c.deadline.date} · ${c.deadline.daysLeft} days left`],
   ];
   return (
     <div className="card">
@@ -158,7 +166,8 @@ export function CardCaseFacts() {
 }
 
 export function CardTasks({ limit }: { limit?: number }) {
-  const list = limit ? CASE.tasks.slice(0, limit) : CASE.tasks;
+  const { tasks } = useFirmCase();
+  const list = limit ? tasks.slice(0, limit) : tasks;
   return (
     <div className="card">
       <div className="hd"><h3>Needed on this case</h3>{limit ? <Go to="todo">All to-dos</Go> : null}</div>
@@ -173,10 +182,11 @@ export function CardTasks({ limit }: { limit?: number }) {
 }
 
 export function CardDocs() {
+  const { documents } = useFirmCase();
   return (
     <div className="card">
       <div className="hd"><h3>Important documents</h3><Go to="documents">All documents</Go></div>
-      {CASE.documents.filter((d) => d.important).map((d) => (
+      {documents.filter((d) => d.important).map((d) => (
         <div className="row r-doc" key={d.name}><Icon name="doc" /><div>{d.name}<small>{d.kind}</small></div><span className="muted" style={{ fontSize: 12.5 }}>{d.date}</span></div>
       ))}
     </div>
@@ -185,10 +195,11 @@ export function CardDocs() {
 
 export function CardDocsFull() {
   const { toast } = useApp();
+  const { documents } = useFirmCase();
   return (
     <div className="card">
       <div className="row r-docfull th"><span /><span>Document</span><span>Type</span><span>Date</span><span /></div>
-      {CASE.documents.map((d) => (
+      {documents.map((d) => (
         <div className="row r-docfull" key={d.name}>
           <Icon name="doc" /><div>{d.name}</div><span className="ink2">{d.kind}</span><span className="ink2">{d.date}</span>
           {d.pending
@@ -201,13 +212,15 @@ export function CardDocsFull() {
 }
 
 function AudienceTag({ u }: { u: CaseUpdate }) {
+  const { providers } = useFirmCase();
   if (u.audience === "firm") return <FirmOnly />;
-  const who = u.audience === "all" ? "all providers" : CASE.providers.find((p) => p.id === u.audience)!.name.split(" ")[0];
+  const who = u.audience === "all" ? "all providers" : providers.find((p) => p.id === u.audience)!.name.split(" ")[0];
   return <span className="tag shared"><Icon name="eye" sm />Shared with {who}</span>;
 }
 
 export function CardUpdates({ limit }: { limit?: number }) {
-  const list = limit ? CASE.updates.slice(0, limit) : CASE.updates;
+  const { updates } = useFirmCase();
+  const list = limit ? updates.slice(0, limit) : updates;
   return (
     <div className="card">
       <div className="hd"><h3>Latest updates</h3>{limit ? <Go to="updates">All updates</Go> : null}</div>
