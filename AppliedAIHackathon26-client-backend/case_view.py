@@ -25,6 +25,7 @@ import re
 from datetime import date
 
 from db import connect
+from digest import queries as doc_facts
 
 FIRM_NAME = os.getenv("FIRM_NAME", "Law firm")  # not in Clio's matter data
 FEE_SHARE = 1 / 3  # standard contingency fee, used for the settlement breakdown
@@ -314,11 +315,15 @@ def build_case(matter_id: int | None = None) -> dict:
                      "urgent": bool(due and (due - today).days <= 7)})
 
     # documents, newest first; the four most recent are "important"
+    # docDate/summary come from the document digest (digest/), when it has been run.
+    facts = doc_facts.document_facts(m["id"])
     documents = []
     for i, d in enumerate(sorted(docs, key=lambda d: d.get("received_at") or "", reverse=True)):
         folder = re.sub(r"^\d+\s*", "", (d.get("parent") or {}).get("name") or "")
         documents.append({"id": d["id"], "name": clean_doc_name(d["name"]), "kind": folder,
-                          "date": fmt(d.get("received_at")), "important": i < 4})
+                          "date": fmt(d.get("received_at")), "important": i < 4,
+                          **({"docDate": fmt(facts[d["id"]]["docDate"]), "summary": facts[d["id"]]["summary"]}
+                             if d["id"] in facts else {})})
 
     # updates: notes stay inside the firm; a communication is shared with a
     # provider only when that provider was a party to it.
@@ -378,6 +383,8 @@ def build_case(matter_id: int | None = None) -> dict:
         "providers": providers, "tasks": todo, "documents": documents, "updates": updates,
         "team": team, "user": team[0] if team else {"name": "Firm user", "initials": "FU", "role": "Legal team"},
         "providerFiles": provider_files,
+        # Firm only: for_provider() copies explicit keys, so this never reaches a provider.
+        "recovery": doc_facts.recovery(m["id"]),
     }
 
 
