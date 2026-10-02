@@ -31,5 +31,6 @@ The CaseBoard client (`../client`) reads everything from these; nothing on the d
 - `GET /case/provider?matter_id=&provider_id=`: the trimmed record one medical provider may see.
 - `GET /documents/{doc_id}`: a synced document file.
 - `GET /cases`: matters synced so far.
+- `GET` / `PUT /users/{user_id}/overview`: how one dashboard user arranged their overview (`null` until they change it). Stored in the `overview_layouts` table, so it follows them to any computer they sign in on.
 
 Optional: set `FIRM_NAME` in `.env` to name the firm on the dashboard (Clio's matter data doesn't include it).

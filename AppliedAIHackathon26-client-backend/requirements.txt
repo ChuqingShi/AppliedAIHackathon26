@@ -1,4 +1,5 @@
 fastapi
 uvicorn
+watchfiles
 requests
 python-dotenv
