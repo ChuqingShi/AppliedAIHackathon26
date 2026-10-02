@@ -62,6 +62,9 @@ export interface Case extends CaseFrame {
   // When the case started and ended: the matter's open and close dates in Clio.
   // `closed` is null while the case is open; `length` is how long it has run ("3 years, 4 months").
   dates: { opened: string | null; closed: string | null; length: string | null };
+  // The document id of the client's photo ID, if one is on file. Firm only: forClient()
+  // and forProvider() never copy it, so an identity document stays inside the firm.
+  photoIdDoc: number | null;
   client: Client;
   incident: { date: string; type: string; location: string; summary: string };
   injuries: Injury[];

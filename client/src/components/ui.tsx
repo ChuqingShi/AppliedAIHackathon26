@@ -29,3 +29,17 @@ export function Go({ to, className = "link", children }: { to: string; className
 export function Rich({ text }: { text: string }) {
   return text.split("**").map((part, i) => (i % 2 ? <b key={i}>{part}</b> : part));
 }
+
+// The client's photo ID on file, as a small thumbnail that opens the full document.
+// Firm only: only the firm's record carries photoIdDoc, and the document routes
+// (src/app/api/documents/) refuse anyone else.
+export function PhotoIdThumb({ docId, name, compact }: { docId: number; name: string; compact?: boolean }) {
+  return (
+    <a className={compact ? "idthumb sm" : "idthumb"} href={`/api/documents/${docId}`} target="_blank" rel="noreferrer" title="Open the photo ID on file">
+      {/* A plain img, not next/image: the optimizer would keep a cached copy of an identity document. */}
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`/api/documents/${docId}/image`} alt={`Photo ID on file for ${name}`} />
+      {!compact && <small>Photo ID</small>}
+    </a>
+  );
+}

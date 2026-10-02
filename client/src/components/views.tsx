@@ -5,7 +5,7 @@ import type { Role } from "@/data/nav";
 import { useApp } from "./AppShell";
 import { Overview, SectionTile } from "./Overview";
 import type { Tile } from "./Overview";
-import { Briefing } from "./Briefing";
+import { Briefing, ProviderBriefing } from "./Briefing";
 import { CardMyDetails, CardMyIncident } from "./client-cards";
 import {
   CardAttention, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
@@ -76,7 +76,8 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     updates: () => <><h2>Updates</h2><SectionTile tile={T.updates}><CardUpdates /></SectionTile></>,
   },
   provider: {
-    overview: () => <Overview tiles={Object.values(P)} />,
+    // The provider's own sign-in briefing pops up over their overview too.
+    overview: () => <><ProviderBriefing /><Overview tiles={Object.values(P)} /></>,
     patient: () => (
       <>
         <h2>Patient &amp; injuries</h2>

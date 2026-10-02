@@ -16,8 +16,8 @@ export async function login(formData: FormData) {
   const account = await findAccount(formData.get("account"));
   if (!account) redirect("/login");
   await createSession(account.id);
-  // The firm gets a briefing of what matters over its overview, once per sign-in.
-  if (account.role === "firm") await queueBriefing();
+  // The firm and medical providers get a briefing of what matters over their overview, once per sign-in.
+  if (account.role === "firm" || account.role === "provider") await queueBriefing();
   redirect("/overview");
 }
 

@@ -1,4 +1,4 @@
-// The briefing that pops up over the firm's overview right after sign-in.
+// The briefing that pops up over the overview right after sign-in (the firm's and the providers').
 // Signing in leaves a short-lived cookie saying it hasn't been seen yet; closing
 // the briefing clears it, so a refresh doesn't bring it back but the next
 // sign-in does.

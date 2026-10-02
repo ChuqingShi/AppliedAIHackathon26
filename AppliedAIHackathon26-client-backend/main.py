@@ -12,7 +12,7 @@ import secrets
 from datetime import datetime, timezone
 
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 
 import case_view
 import clio
@@ -98,6 +98,30 @@ def document(doc_id: int):
         raise HTTPException(404, "That document has not been downloaded. Re-sync without --no-files.")
     name = os.path.basename(row["path"]).split("__", 1)[-1]
     return FileResponse(row["path"], filename=name, content_disposition_type="inline")
+
+
+@app.get("/documents/{doc_id}/image")
+def document_image(doc_id: int):
+    """A synced document as a picture, for a thumbnail: the first image inside it
+    (a scanned ID is one embedded JPEG), or its first page rendered if it has none."""
+    import pymupdf  # only this endpoint needs it
+
+    with connect() as conn:
+        row = conn.execute("SELECT path FROM doc_files WHERE doc_id=?", (doc_id,)).fetchone()
+    if not row or not os.path.isfile(row["path"]):
+        raise HTTPException(404, "That document has not been downloaded. Re-sync without --no-files.")
+    with pymupdf.open(row["path"]) as pdf:
+        if not pdf.page_count:
+            raise HTTPException(404, "That document has no pages")
+        images = pdf[0].get_images(full=True)
+        if images:
+            img = pdf.extract_image(images[0][0])
+            data, kind = img["image"], img["ext"]
+        else:
+            data, kind = pdf[0].get_pixmap(dpi=110).tobytes("png"), "png"
+    # private: it can be an identity document, so browsers mustn't keep a shared copy
+    return Response(data, media_type=f"image/{'jpeg' if kind in ('jpg', 'jpeg') else kind}",
+                    headers={"Cache-Control": "private, no-store"})
 
 
 # ---- Facts read out of the documents (built by `python -m digest`; firm only) ----

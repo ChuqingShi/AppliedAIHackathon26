@@ -15,6 +15,7 @@ import type { Role } from "@/data/nav";
 import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchBar } from "./SearchBar";
+import { PhotoIdThumb } from "./ui";
 
 export interface ChatMessage { me?: boolean; text: string }
 export interface DemoAccount { id: string; role: Role }
@@ -30,8 +31,10 @@ interface App {
   ask: (question: string) => void;
   toast: (text: string) => void;
   openMessage: (name: string) => void;
-  // The firm's sign-in briefing (components/Briefing.tsx): open until closed once.
+  // The sign-in briefing for the firm and providers (components/Briefing.tsx): open after sign-in until
+  // closed, and reopened any time from the sidebar's "Today's briefing" button.
   briefingOpen: boolean;
+  openBriefing: () => void;
   closeBriefing: () => void;
 }
 
@@ -126,13 +129,15 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
     setBriefingOpen(false);
     dismissBriefing().catch(() => {});
   }, []);
+  // Reopening is only on screen: nothing to save, it closes the same way.
+  const openBriefing = useCallback(() => setBriefingOpen(true), []);
 
   const main = useRef<HTMLElement>(null);
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, closeBriefing }),
-    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast, briefingOpen, closeBriefing],
+    () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, openBriefing, closeBriefing }),
+    [dashboard, overview, setOverview, role, view, chat, asking, ask, toast, briefingOpen, openBriefing, closeBriefing],
   );
 
   return (
@@ -185,7 +190,9 @@ export function CaseStatusBadge({ closed }: { closed: string | null }) {
 function frame(d: Dashboard) {
   switch (d.role) {
     case "firm": return {
-      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id, dates: caseDates(d.case) },
+      box: { label: "Case", title: d.case.shortTitle, sub: d.case.id, dates: caseDates(d.case),
+        // the client's photo ID beside the case name, firm only
+        photo: d.case.photoIdDoc != null ? { docId: d.case.photoIdDoc, name: d.case.client.name } : null },
       counts: { todo: d.case.tasks.filter((t) => t.urgent).length } as Record<string, number>,
     };
     case "provider": return {
@@ -202,18 +209,25 @@ function frame(d: Dashboard) {
 const SHORT_ROLE: Record<Role, string> = { firm: "Law firm", provider: "Provider", client: "Client" };
 
 function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
-  const { dashboard, role, view } = useApp();
+  const { dashboard, role, view, openBriefing } = useApp();
   const { user } = dashboard;
   const { box, counts } = frame(dashboard);
   return (
     <>
       <div className="logo"><span><Icon name="shield" /></span>CaseBoard</div>
       <div className="casebox">
-        <small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span>
+        <div className="casebox-hd">
+          <div><small>{box.label}</small><b>{box.title}</b><span>{box.sub}</span></div>
+          {box.photo && <PhotoIdThumb docId={box.photo.docId} name={box.photo.name} compact />}
+        </div>
         {box.dates && (
           <dl>{box.dates.map(([k, v]) => <div key={k}><dt>{k}</dt><dd>{v}</dd></div>)}</dl>
         )}
       </div>
+      {/* Brings back the sign-in briefing (firm and providers), which pops up over the overview, from any page. */}
+      {role !== "client" && (
+        <Link href="/overview" className="brief-btn" onClick={openBriefing}><Icon name="spark" />Today&apos;s briefing</Link>
+      )}
       {NAV[role].map(({ id, label, icon }) => (
         <Link key={id} href={`/${id}`} className={view === id ? "nav on" : "nav"}>
           <Icon name={icon} />{label}{counts[id] ? <span className="ct">{counts[id]}</span> : null}

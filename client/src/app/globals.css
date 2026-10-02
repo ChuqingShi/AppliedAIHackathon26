@@ -43,11 +43,23 @@ a { color: inherit; text-decoration: none; }
 .casebox small { display: block; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .casebox b { display: block; font-weight: 600; margin: 1px 0; }
 .casebox span { font-size: 12px; color: var(--ink2); }
+/* the case name with the client's photo ID beside it (firm only) */
+.casebox-hd { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.casebox-hd > div { min-width: 0; }
 /* the firm's key dates under the case number: opened, closed, deadline */
 .casebox dl { margin: 8px 0 0; padding-top: 8px; border-top: 1px solid var(--line); display: grid; gap: 3px; }
 .casebox dl div { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
 .casebox dt { color: var(--muted); }
 .casebox dd { margin: 0; color: var(--ink); text-align: right; }
+/* "Today's briefing" under the case box (firm only): reopens the sign-in briefing */
+.brief-btn { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; margin-bottom: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--acc); color: var(--acc); font-size: 13.5px; font-weight: 600; }
+.brief-btn:hover { background: var(--acc-soft); }
+/* The client's photo ID on the Client card (firm only): a small thumbnail that opens the document */
+.idthumb { margin-left: auto; display: flex; flex-direction: column; align-items: center; gap: 3px; flex: none; }
+.idthumb img { width: 76px; height: 64px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); background: var(--plane); }
+.idthumb small { font-size: 11px; color: var(--muted); }
+.idthumb.sm img { width: 52px; height: 44px; border-radius: 5px; }
+.idthumb:hover img { border-color: var(--acc); }
 .nav { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border-radius: 8px; font-size: 14px; color: var(--ink2); }
 .nav:hover { background: var(--plane); }
 .nav.on { background: var(--acc-soft); color: var(--acc); font-weight: 600; }

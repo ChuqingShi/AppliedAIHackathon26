@@ -42,6 +42,8 @@ STAGES = [
     ("Settlement", None),
     ("Providers paid", None),
 ]
+# A document whose file name matches this is the client's identity document.
+PHOTO_ID = re.compile(r"photo[-_ ]?id|identification|driver'?s?[-_ ]?licen[cs]e|passport", re.I)
 # A relationship whose description matches this is a medical provider.
 MEDICAL = re.compile(r"medical provider|treating|hospital|surgeon", re.I)
 # Words too common in provider names to tell providers apart when matching a
@@ -325,6 +327,11 @@ def build_case(matter_id: int | None = None) -> dict:
                           **({"docDate": fmt(facts[d["id"]]["docDate"]), "summary": facts[d["id"]]["summary"]}
                              if d["id"] in facts else {})})
 
+    # the client's photo ID, if the firm has one on file: found by its file name,
+    # newest first. Only its id goes out; GET /documents/{id}/image serves the picture.
+    photo_id = next((d["id"] for d in sorted(docs, key=lambda d: d.get("received_at") or "", reverse=True)
+                     if PHOTO_ID.search(d.get("name") or "")), None)
+
     # updates: notes stay inside the firm; a communication is shared with a
     # provider only when that provider was a party to it.
     by_name = {p["name"]: p["id"] for p in providers}
@@ -385,6 +392,8 @@ def build_case(matter_id: int | None = None) -> dict:
         "providerFiles": provider_files,
         # Firm only: for_provider() copies explicit keys, so this never reaches a provider.
         "recovery": doc_facts.recovery(m["id"]),
+        # Firm only, like recovery: an identity document must never reach a provider or the client.
+        "photoIdDoc": photo_id,
     }
 
 
