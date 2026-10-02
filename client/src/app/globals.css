@@ -123,11 +123,10 @@ a { color: inherit; text-decoration: none; }
 .tiles-bar { display: none; justify-content: flex-end; margin: -6px 0; }
 /* the overview's rows. Tiles are dragged between them; the bar shows where the one being dragged will land */
 .tiles { display: flex; flex-direction: column; gap: 16px; }
-/* a row: its tiles side by side, wrapping when they don't fit. --s, --m and --l are the widths a tile can be
-   set to (a third, a half, two thirds of the row, a hair under so three thirds never wrap); a tile with no
-   set size shares what the others leave, and is never narrower than a small one */
-.g-tiles { position: relative; display: flex; flex-wrap: wrap; gap: 16px; --s: calc((100% - 32px) / 3 - .1px); --m: calc((100% - 16px) / 2 - .1px); --l: calc((100% - 32px) / 3 * 2 + 15.9px); }
-.g-tiles > .tile { flex: 1 1 100%; }
+/* a row: its tiles side by side on six columns that every row shares, so their edges line up from one row to
+   the next. --span is how many of the six a tile takes (see spans in Overview.tsx); tiles that don't fit
+   side by side go on the next line */
+.g-tiles { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
 /* the grip in the gap to a tile's right: pull it to resize. It stays lit on a tile whose size is set */
 .tile-size { position: absolute; top: 0; bottom: 0; right: -13px; width: 10px; display: none; place-items: center; cursor: ew-resize; touch-action: none; outline: 0; }
 .tile-size::before { content: ""; width: 4px; height: 36px; border-radius: 2px; background: var(--axis); opacity: 0; transition: opacity .12s; }
@@ -136,11 +135,8 @@ a { color: inherit; text-decoration: none; }
 .tile-size:hover::before, .tile-size:focus-visible::before, .tile-size.on::before { background: var(--acc); opacity: 1; }
 .tile-size-tag { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 2; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
 @media (min-width: 1251px) {
-  .g-tiles > .tile { flex: var(--grow) 1 0; min-width: var(--s); }
-  .g-tiles > .tile.size-s { flex: 0 0 var(--s); }
-  .g-tiles > .tile.size-m { flex: 0 0 var(--m); }
-  .g-tiles > .tile.size-l { flex: 0 0 var(--l); }
-  .g-tiles > .tile.size-full { flex: 0 0 100%; }
+  .g-tiles { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .g-tiles > .tile { grid-column: span var(--span); }
   .tile-size { display: grid; }
   .tiles-bar { display: flex; }
 }
@@ -213,6 +209,13 @@ a { color: inherit; text-decoration: none; }
 .r-upd { grid-template-columns: 96px 1fr auto; align-items: start; }
 .r-upd .d { font-size: 12.5px; color: var(--muted); padding-top: 1px; }
 .r-upd b, .r-task b, .r-team b { font-weight: 600; }
+/* A to-do's title is a link that covers its whole row. The To-do page shows the one it was sent in full. */
+.r-task { position: relative; }
+.r-task a::after { content: ""; position: absolute; inset: 0; }
+.r-task:hover a { color: var(--acc); }
+.r-task.open { margin: 0 -10px; padding: 12px 10px; border-radius: 8px; background: var(--acc-soft); border-top-color: transparent; scroll-margin-block: 110px 16px; }
+.r-task.open + .row { border-top-color: transparent; }
+.task-detail { grid-column: 2 / -1; position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .r-team { grid-template-columns: 32px 1fr auto; }
 .r-prov { grid-template-columns: minmax(0, 1.4fr) 190px 110px 130px auto; }
 .r-docfull { grid-template-columns: 18px minmax(0, 1.6fr) 110px 110px auto; }
@@ -296,8 +299,8 @@ a { color: inherit; text-decoration: none; }
 .actions { display: flex; gap: 8px; margin-top: auto; padding-top: 14px; }
 .actions .btn { flex: 1; }
 
-/* the client's own details, as a form */
-.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 14px; }
+/* the client's own details, as a form: two columns, or one where the card is too narrow for them (a small tile) */
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(180px, 50% - 7px)), 1fr)); gap: 12px 14px; }
 .fld { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); min-width: 0; }
 .fld.wide { grid-column: 1 / -1; }
 .fld input { width: 100%; border: 1px solid var(--axis); border-radius: 8px; padding: 8px 11px; outline: 0; font-size: 14px; color: var(--ink); background: #fff; }

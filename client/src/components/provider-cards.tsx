@@ -1,7 +1,8 @@
 "use client";
 
+import type { TeamMember } from "@/data/types";
 import { useApp, useProviderCase } from "./AppShell";
-import { InjuriesList } from "./firm-cards";
+import { ContactLines, InjuriesList } from "./firm-cards";
 import { Icon } from "./Icon";
 import { Go, Status, day, money } from "./ui";
 
@@ -35,8 +36,9 @@ export function CardPatient({ full }: { full?: boolean }) {
       <div className="hd"><h3>Patient</h3>{!full && <Go to="patient">Details</Go>}</div>
       <div className="person"><span className="av lg">{p.initials}</span><div><b>{p.name}</b><small>{[p.age != null && `Age ${p.age}`, p.dob && `born ${day(p.dob)}`].filter(Boolean).join(" · ")}</small></div></div>
       <div className="kv">
-        {p.phone && <><Icon name="phone" /><span>{p.phone}</span></>}
+        <ContactLines of={p} full={full} />
         {p.since && <><Icon name="cal" /><span>Your patient since {p.since}</span></>}
+        {p.updated && <><Icon name="edit" /><span className="ink2">Details updated by the patient on {day(p.updated)}</span></>}
       </div>
       <div className="sect">Incident · {incident.date}</div>
       <p style={{ fontSize: 13.5 }}>{incident.type}. {incident.summary}</p>
@@ -46,19 +48,24 @@ export function CardPatient({ full }: { full?: boolean }) {
   );
 }
 
-export function CardTeam({ full }: { full?: boolean }) {
+// The people at the firm working on the case, each with a button to message them.
+export function TeamList({ team }: { team: TeamMember[] }) {
   const { openMessage } = useApp();
+  return team.map((m) => (
+    <div className="row r-team" key={m.name}>
+      <span className={m.main ? "av" : "av alt"}>{m.initials}</span>
+      <div><b>{m.name}</b><small>{m.role}</small>{m.main && <small className="main-contact">Your main contact</small>}</div>
+      <button className={m.main ? "btn sm" : "btn ghost sm"} onClick={() => openMessage(m.name)}><Icon name="msg" />Message</button>
+    </div>
+  ));
+}
+
+export function CardTeam({ full }: { full?: boolean }) {
   const { team, firm } = useProviderCase();
   return (
     <div className="card">
       <div className="hd"><h3>Legal team</h3><span className="muted" style={{ fontSize: 13 }}>{firm}</span></div>
-      {team.map((m) => (
-        <div className="row r-team" key={m.name}>
-          <span className={m.main ? "av" : "av alt"}>{m.initials}</span>
-          <div><b>{m.name}</b><small>{m.role}</small>{m.main && <small className="main-contact">Your main contact</small>}</div>
-          <button className={m.main ? "btn sm" : "btn ghost sm"} onClick={() => openMessage(m.name)}><Icon name="msg" />Message</button>
-        </div>
-      ))}
+      <TeamList team={team} />
       {full && <p className="ink2" style={{ fontSize: 13, marginTop: 12 }}>Messages go to the whole team on this case, so anyone can pick them up.</p>}
     </div>
   );

@@ -37,6 +37,35 @@ function nearestSize(width: number, row: number) {
   return SIZES.reduce((best, size) => (Math.abs(widths[size] - width) < Math.abs(widths[best] - width) ? size : best));
 }
 
+// How many sixths of the row each of its tiles takes. Every row is cut into the same six columns, so tiles in
+// different rows line up exactly. `set` is the span a tile is fixed at, if it is. The rest share the columns
+// left on their line, in proportion to their best sizes and never less than a small one; tiles that don't
+// fit side by side go on the next line.
+function spans(row: Tile[], set: (t: Tile) => number | undefined) {
+  const out: Record<string, number> = {};
+  let line: Tile[] = [];
+  const used = () => line.reduce((sum, t) => sum + out[t.id], 0);
+  function fill() {
+    const free = line.filter((t) => set(t) === undefined);
+    const grow = (t: Tile) => SPAN[t.size ?? "s"];
+    const all = free.reduce((sum, t) => sum + grow(t), 0);
+    const share = (ROW - used() + free.length * SPAN.s) / all;
+    // One column at a time, to the tile furthest short of its share.
+    for (let spare = ROW - used(); free.length && spare > 0; spare--) {
+      const short = (t: Tile) => grow(t) * share - out[t.id];
+      out[free.reduce((most, t) => (short(t) > short(most) ? t : most)).id]++;
+    }
+    line = [];
+  }
+  for (const t of row) {
+    out[t.id] = set(t) ?? SPAN.s;
+    if (used() + out[t.id] > ROW) fill();
+    line.push(t);
+  }
+  fill();
+  return out;
+}
+
 // Every tile with a place on the overview, row by row: the user's own
 // arrangement once they have dragged tiles around, the default rows until then.
 // Tiles that have no place yet (just added from a section) go at the end.
@@ -203,6 +232,11 @@ export function Overview({ tiles }: { tiles: Tile[] }) {
   const [resizing, setResizing] = useState<{ id: string; size: TileSize } | null>(null);
   const sizeOf = (t: Tile): TileSize | undefined => (resizing?.id === t.id ? resizing.size : layout.overview.sizes[t.id]);
 
+  // The tile whose form field the pointer last went down in. That press is for the field (to place the cursor
+  // or select its text), so it can't drag the tile.
+  const [inField, setInField] = useState<string | null>(null);
+  const press = (e: PointerEvent<HTMLDivElement>, t: Tile) => setInField(e.target instanceof Element && e.target.closest("input, textarea, select") ? t.id : null);
+
   function startResize(e: PointerEvent<HTMLDivElement>, t: Tile) {
     if (e.button !== 0) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -362,6 +396,7 @@ export function Overview({ tiles }: { tiles: Tile[] }) {
         <div className="tiles" ref={tilesEl} onDragOver={dragOver} onDragLeave={dragLeave} onDrop={dropTile}>
           {rows.map((row, i) => {
             const edge = drop && (drop.side === "above" || drop.side === "below") && row.some((t) => t.id === drop.id) ? ` drop-${drop.side}` : "";
+            const span = spans(row, (t) => { const size = sizeOf(t); return size ? SPAN[size] : fills(t) ? ROW : undefined; });
             return (
               <div className={`g-tiles${edge}`} key={i}>
                 {row.map((t) => {
@@ -370,7 +405,7 @@ export function Overview({ tiles }: { tiles: Tile[] }) {
                   const pulling = resizing?.id === t.id;
                   const locked = layout.isLocked(t);
                   return (
-                    <div className={`tile${size ? ` size-${size}` : fills(t) ? " size-full" : ""}${dragging === t.id ? " dragging" : ""}${beside}`} key={t.id} data-tile={t.id} style={{ "--grow": SPAN[t.size ?? "s"] } as CSSProperties} draggable={!locked} onDragStart={(e) => startDrag(e, t)} onDragEnd={endDrag}>
+                    <div className={`tile${dragging === t.id ? " dragging" : ""}${beside}`} key={t.id} data-tile={t.id} style={{ "--span": span[t.id] } as CSSProperties} draggable={!locked && inField !== t.id} onPointerDown={(e) => press(e, t)} onDragStart={(e) => startDrag(e, t)} onDragEnd={endDrag}>
                       {t.card}
                       <button className={locked ? "tile-lock on" : "tile-lock"} aria-pressed={locked} aria-label={`Lock ${t.title} in place`} title={locked ? "Locked in place. Click to unlock." : "Lock in place, so Auto-arrange leaves it as it is"} onClick={(e) => toggleLock(e, t, row)}>
                         <Icon name={locked ? "lock" : "unlock"} />

@@ -9,7 +9,7 @@ npm run dev     # http://localhost:3000
 
 All case data comes from the Sapini backend in `../AppliedAIHackathon26-client-backend`, which syncs the matter from Clio. Start it first (see its README); the client expects it at `http://127.0.0.1:8000` (override with `SAPINI_API_URL`, pick a matter with `SAPINI_MATTER_ID`). If it is down, pages show how to start it instead of falling back to sample data.
 
-One dashboard, three kinds of user: the law firm, a medical provider, and the client (plaintiff). Who is signed in decides which views exist and which data the browser receives. The law firm's dashboard is the one being built first; the provider's is the ported mockup, and the client's is a placeholder.
+One dashboard, three kinds of user: the law firm, a medical provider, and the client (plaintiff). Who is signed in decides which views exist and which data the browser receives. The law firm's dashboard is the one being built first; the provider's is the ported mockup, and the client's shows what the firm holds about them and who is working on their case.
 
 ## Layout
 
@@ -18,6 +18,7 @@ One dashboard, three kinds of user: the law firm, a medical provider, and the cl
 - `src/app/actions.ts` — server actions: sign in, sign out, ask the assistant.
 - `src/lib/session.ts` — the session cookie. `src/lib/dashboard.ts` — `getDashboard()`, the one place data comes from: it returns only the record the signed-in role may see. It gets the case from the backend.
 - `src/lib/preferences.ts` — how each user arranged their overview (tiles added, removed, moved, resized, locked). Saved under their account in the backend, so it is the same on every computer they sign in on.
+- `src/lib/profile.ts` — the client's own changes to their personal details. Saved per case in the backend and laid over what Clio has, so the firm and the providers see them too.
 - `src/lib/assistant.ts` — keyword answers for "Ask about this case" (firm only), built from the loaded case; replace with a model call.
 - `src/data/types.ts` — the shapes of each role's record. `src/data/case.ts` — `loadCase()`, which fetches the case from the backend, and `forProvider()` / `forClient()`, which build the trimmed records. `src/data/nav.ts` — the roles and their views. Adding a view means one entry there and one in `src/components/views.tsx`.
 - `src/components/AppShell.tsx` — sidebar, sticky case header, search, message dialog, toasts. Cards read their data with `useFirmCase()` / `useProviderCase()`.

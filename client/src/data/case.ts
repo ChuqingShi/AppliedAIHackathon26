@@ -48,10 +48,12 @@ export function forProvider(c: Case, providerId: string): ProviderCase {
   const me = c.providers.find((p) => p.id === providerId);
   const file = c.providerFiles[providerId];
   if (!me || !file) throw new Error(`No provider "${providerId}" on this case`);
+  // The personal details the client keeps up to date are for their providers as well as the firm.
+  const { name, initials, dob, age, phone, email, address, language, bestTime, occupation, updated } = c.client;
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     provider: { id: me.id, name: me.name },
-    patient: { name: c.client.name, initials: c.client.initials, dob: c.client.dob, age: c.client.age, phone: c.client.phone, since: file.patientSince },
+    patient: { name, initials, dob, age, phone, email, address, language, bestTime, occupation, updated, since: file.patientSince },
     incident: { date: c.incident.date, type: c.incident.type, summary: c.incident.summary },
     injuries: c.injuries,
     lien: me.billed,
@@ -64,12 +66,14 @@ export function forProvider(c: Case, providerId: string): ProviderCase {
 }
 
 // The record the client (plaintiff) is allowed to see. Same rule: whitelist only.
-// The rest of their dashboard isn't designed yet, so this is what the shared
-// shell shows plus what the firm holds about them personally.
+// They get what the firm holds about them personally, their legal team and the
+// names of the providers treating them, but none of the money or the firm's own notes.
 export function forClient(c: Case): ClientCase {
   return {
     id: c.id, firm: c.firm, stages: c.stages, stageIndex: c.stageIndex,
     title: c.title, shortTitle: c.shortTitle,
     client: c.client, incident: c.incident, injuries: c.injuries,
+    team: c.team,
+    providers: c.providers.map((p) => ({ name: p.name, since: c.providerFiles[p.id]?.patientSince ?? "" })),
   };
 }

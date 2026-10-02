@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
 import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { askAssistant, dismissBriefing, login, logout, saveOverviewLayout } from "@/app/actions";
+import { askAssistant, currentAccount, dismissBriefing, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
 import type { Case, ClientCase, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
@@ -63,6 +63,30 @@ export function useClientCase(): ClientCase {
   const { dashboard } = useApp();
   if (dashboard.role !== "client") throw new Error("This card is for the client only");
   return dashboard.case;
+}
+
+// The whole browser shares one sign-in, so signing in as someone else in another
+// tab leaves this one showing the last account's sidebar, whose links the new
+// account may not have. When that happens, start again at the overview as
+// whoever is signed in now.
+function startOver() {
+  window.location.replace("/overview");
+}
+
+// Wraps what each page renders. `user` is the account the server saw for that
+// request; if the shell was built for a different one, nothing shows until it reloads.
+export function SignedInAs({ user, children }: { user: string; children: ReactNode }) {
+  const stale = useApp().dashboard.user.id !== user;
+  useEffect(() => { if (stale) startOver(); }, [stale]);
+  return stale ? null : children;
+}
+
+// For where the server hasn't just said who is signed in: asks it, and starts
+// over unless it is still `user`, the account this tab shows.
+export async function checkSignedInAs(user: string) {
+  const now = await currentAccount();
+  if (now !== user) startOver();
+  return now === user;
 }
 
 export function AppShell({ dashboard, overview: savedOverview, demoAccounts, briefing = false, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; briefing?: boolean; children: ReactNode }) {
@@ -134,6 +158,14 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
 
   const main = useRef<HTMLElement>(null);
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
+
+  // Coming back to this tab: check it still shows the account that is signed in.
+  const userId = dashboard.user.id;
+  useEffect(() => {
+    const check = () => { checkSignedInAs(userId).catch(() => {}); };
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, [userId]);
 
   const app = useMemo<App>(
     () => ({ dashboard, overview, setOverview, role, view, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo, briefingOpen, openBriefing, closeBriefing }),

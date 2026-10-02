@@ -6,7 +6,7 @@ import { useApp } from "./AppShell";
 import { Overview, SectionTile } from "./Overview";
 import type { Tile } from "./Overview";
 import { Briefing, ProviderBriefing } from "./Briefing";
-import { CardMyDetails, CardMyIncident } from "./client-cards";
+import { CardMyCase, CardMyDetails, CardMyIncident, CardMyProviders, CardMyTeam } from "./client-cards";
 import {
   CardAttention, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
   CardFinancials, CardMoney, CardProviderBills, CardStatus, CardTasks, CardUpdates,
@@ -15,7 +15,7 @@ import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, 
 
 // Every tile the firm's overview can show. Those with a `row` are there by
 // default; the rest are added from their section. A new tile is one entry here
-// (or in P, for providers) plus a <SectionTile> wherever it should be offered.
+// (or in P for providers, C for the client) plus a <SectionTile> wherever it should be offered.
 //
 // The default overview reads top to bottom as: what needs action today (alone in
 // its row, so it spans the page), where the case is and the money in brief, then
@@ -44,6 +44,16 @@ const P = {
   records: { id: "records", title: "Your medical records & documents", row: 1, size: "m", card: <CardRecords /> },
   updates: { id: "status-updates", title: "Status updates", row: 1, card: <CardProviderUpdates limit={4} /> },
   bill: { id: "bill", title: "Your bill", card: <CardBill /> },
+} satisfies Record<string, Tile>;
+
+// And for the client's: what the firm holds about them, which they can correct
+// right on the tile, and who is working on their case.
+const C = {
+  details: { id: "my-details", title: "Your details", row: 0, size: "m", card: <CardMyDetails /> },
+  providers: { id: "my-providers", title: "Your medical providers", row: 0, card: <CardMyProviders /> },
+  status: { id: "my-case", title: "Where your case stands", row: 1, card: <CardMyCase /> },
+  incident: { id: "my-incident", title: "Your incident and injuries", row: 1, card: <CardMyIncident /> },
+  team: { id: "my-team", title: "Your legal team", row: 1, card: <CardMyTeam /> },
 } satisfies Record<string, Tile>;
 
 // One entry per item in NAV (src/data/nav.ts).
@@ -107,20 +117,14 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     ),
     team: () => <><h2>Legal team</h2><SectionTile tile={P.team}><CardTeam full /></SectionTile></>,
   },
-  // The overview is a placeholder until the client's dashboard is designed.
   client: {
-    overview: () => (
-      <div className="card">
-        <div className="hd"><h3>Your case</h3></div>
-        <p className="lead">Your dashboard is still being built. For now, the progress bar above shows where your case stands.</p>
-      </div>
-    ),
+    overview: () => <Overview tiles={Object.values(C)} />,
     profile: () => (
       <>
         <h2>My information</h2>
         <div className="grid g-2">
-          <CardMyDetails />
-          <CardMyIncident />
+          <SectionTile tile={C.details}><CardMyDetails /></SectionTile>
+          <SectionTile tile={C.incident}><CardMyIncident /></SectionTile>
         </div>
       </>
     ),

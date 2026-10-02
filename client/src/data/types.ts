@@ -10,8 +10,9 @@ export type StatusKind = "good" | "warn";
 export interface Stage { name: string; date: string }
 export interface Injury { name: string; status: string; by: string }
 export interface Provider { id: string; name: string; billed: number; records: StatusKind; bill: StatusKind; contact: string }
-// `daysLeft` is negative once the task is overdue, and null when it has no due date.
-export interface Task { title: string; who: string; due: string; daysLeft?: number | null; urgent?: boolean }
+// `detail` is the task's description in Clio; `daysLeft` is negative once the
+// task is overdue, and null when it has no due date.
+export interface Task { id: number; title: string; who: string; due: string; urgent?: boolean; detail: string | null; daysLeft: number | null }
 export interface CaseDocument { id?: number; name: string; kind: string; date: string; important?: boolean; pending?: boolean }
 export interface UpdateText { t: string; s: string }
 export interface CaseUpdate { date: string; audience: string; icon: IconName; firm: UpdateText; shared?: UpdateText }
@@ -92,7 +93,8 @@ export interface Case extends CaseFrame {
 // What one medical provider sees: status changes and their own bills and records.
 export interface ProviderCase extends CaseFrame {
   provider: { id: string; name: string };
-  patient: { name: string; initials: string; dob: string; age: number | null; phone: string | null; since: string };
+  // The client's personal details, with their own changes, and when this provider first saw them.
+  patient: Client & { since: string };
   incident: { date: string; type: string; summary: string };
   injuries: Injury[];
   lien: number;
@@ -103,15 +105,16 @@ export interface ProviderCase extends CaseFrame {
   team: TeamMember[];
 }
 
-// What the client (the plaintiff) sees. The rest of their dashboard isn't
-// designed yet, so for now this is what the shared shell needs and what the
-// firm holds about them personally.
+// What the client (the plaintiff) sees: what the firm holds about them
+// personally, and who is working on their case and treating them.
 export interface ClientCase extends CaseFrame {
   title: string;
   shortTitle: string;
   client: Client;
   incident: Case["incident"];
   injuries: Injury[];
+  team: TeamMember[];
+  providers: { name: string; since: string }[]; // `since` is when they first treated the client
 }
 
 export interface User { id: string; name: string; initials: string; title: string }
