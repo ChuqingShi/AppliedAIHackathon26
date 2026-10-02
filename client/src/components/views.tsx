@@ -9,7 +9,7 @@ import { Briefing, ProviderBriefing } from "./Briefing";
 import { CardMyCase, CardMyDetails, CardMyIncident, CardMyProviders, CardMyTeam } from "./client-cards";
 import {
   CardAttention, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
-  CardFinancials, CardMoney, CardProviderBills, CardStatus, CardTasks, CardUpdates,
+  CardFinancials, CardMoney, CardProviderBills, CardStatus, CardTasks, CardUploads, CardUpdates,
 } from "./firm-cards";
 import { CardQuestionsForYou, CardQuestionsSent } from "./inquiry-cards";
 import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, CardTeam } from "./provider-cards";
@@ -31,6 +31,7 @@ const T = {
   financials: { id: "financials", title: "Case financials", size: "l", card: <CardFinancials /> },
   client: { id: "client", title: "Client", card: <CardClient /> },
   documents: { id: "documents", title: "Important documents", card: <CardDocs /> },
+  uploads: { id: "uploads", title: "From medical providers", card: <CardUploads /> },
   providerBills: { id: "provider-bills", title: "Medical bills by provider", size: "m", card: <CardProviderBills /> },
   breakdown: { id: "breakdown", title: "Settlement breakdown", card: <CardBreakdown /> },
   caseFacts: { id: "case-facts", title: "Case details", card: <CardCaseFacts /> },
@@ -85,7 +86,8 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
         </div>
       </>
     ),
-    documents: () => <><h2>Documents</h2><SectionTile tile={T.documents}><CardDocsFull /></SectionTile></>,
+    // Files providers uploaded come first: they are new to the firm, the rest came from Clio.
+    documents: () => <><h2>Documents</h2><SectionTile tile={T.uploads}><CardUploads /></SectionTile><SectionTile tile={T.documents}><CardDocsFull /></SectionTile></>,
     todo: () => <><h2>To-do</h2><SectionTile tile={T.tasks}><CardTasks /></SectionTile></>,
     providers: () => <><h2>Medical providers</h2><SectionTile tile={T.providerBills}><CardProviderBills withMessage /></SectionTile></>,
     updates: () => <><h2>Updates</h2><SectionTile tile={T.updates}><CardUpdates /></SectionTile></>,

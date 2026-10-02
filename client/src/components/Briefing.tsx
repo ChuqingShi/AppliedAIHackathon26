@@ -61,7 +61,7 @@ export function Briefing() {
   const { dashboard } = useApp();
   const c = useFirmCase();
   // The alerts are the "Needs attention" strip's, so the two always agree.
-  const alerts = attention(c, dashboard.inquiries);
+  const alerts = attention(c, dashboard.inquiries, dashboard.role === "firm" ? dashboard.uploads : []);
   const due = c.tasks.slice(0, 3);
   const recent = c.updates.slice(0, 3);
   const d = c.deadline;

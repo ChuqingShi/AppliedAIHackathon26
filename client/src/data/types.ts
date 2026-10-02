@@ -160,7 +160,22 @@ export interface OverviewLayout { removed: string[]; added: string[]; rows: stri
 // the server builds, and so what the browser receives. `inquiries` are the
 // questions the firm has sent: all of them for the firm, and for a provider or
 // the client the ones sent to them.
+// A file a medical provider uploaded for the firm from their dashboard. Times are ISO
+// timestamps; `openedAt` is when the firm first opened it (null: not yet).
+export interface Upload {
+  id: number;
+  provider: { id: string; name: string };
+  uploadedBy: string;
+  fileName: string;
+  contentType: string;
+  size: number;
+  note: string | null; // what it's for, e.g. the request it answers
+  uploadedAt: string;
+  openedAt: string | null;
+}
+
+// `uploads`: the firm gets every file providers sent on the case; a provider only their own.
 export type Dashboard =
-  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[] }
-  | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[] }
+  | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[]; uploads: Upload[] }
+  | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[]; uploads: Upload[] }
   | { role: "client"; user: User; case: ClientCase; inquiries: Inquiry[] };

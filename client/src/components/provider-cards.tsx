@@ -1,15 +1,53 @@
 "use client";
 
+import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import type { TeamMember } from "@/data/types";
 import { useApp, useProviderCase } from "./AppShell";
 import { ContactLines, InjuriesList } from "./firm-cards";
+import { when } from "./format";
 import { Icon } from "./Icon";
 import { Go, Status, day, money } from "./ui";
 
-const UPLOAD_TOAST = "Upload isn't wired up in the prototype";
+// Uploads a file for the law firm (src/app/api/uploads/route.ts). `note` says what it
+// is for, e.g. the request it answers; the firm sees it beside the file.
+function UploadButton({ note }: { note?: string }) {
+  const { toast } = useApp();
+  const router = useRouter();
+  const input = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function send(file: File) {
+    setBusy(true);
+    const form = new FormData();
+    form.append("file", file);
+    if (note) form.append("note", note);
+    try {
+      const res = await fetch("/api/uploads", { method: "POST", body: form });
+      const body = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(body?.error ?? "The upload didn't go through. Try again in a moment.");
+      toast(`Sent ${file.name} to the law firm`);
+      router.refresh(); // show it under "Sent to the firm"
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "The upload didn't go through. Try again in a moment.");
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <>
+      <input ref={input} type="file" hidden accept=".pdf,.jpg,.jpeg,.png,.heic,.tif,.tiff,.doc,.docx"
+        onChange={(e) => { const f = e.target.files?.[0]; if (f) send(f); }} />
+      <button className="btn sm" disabled={busy} onClick={() => input.current?.click()}>
+        <Icon name="upload" />{busy ? "Uploading…" : "Upload"}
+      </button>
+    </>
+  );
+}
 
 export function CardProgress() {
-  const { toast } = useApp();
   const p = useProviderCase();
   const r = p.requests[0];
   return (
@@ -22,7 +60,7 @@ export function CardProgress() {
           <div className="k"><Icon name="bang" />Needed from you</div>
           <div className="t">{r.title}</div>
           <p>{r.detail}</p>
-          <div className="rw"><span className="st"><Icon name="cal" sm />Due {r.due} · {r.daysLeft >= 0 ? `${r.daysLeft} days left` : `${-r.daysLeft} days overdue`}</span><button className="btn sm" onClick={() => toast(UPLOAD_TOAST)}><Icon name="upload" />Upload</button></div>
+          <div className="rw"><span className="st"><Icon name="cal" sm />Due {r.due} · {r.daysLeft >= 0 ? `${r.daysLeft} days left` : `${-r.daysLeft} days overdue`}</span><UploadButton note={`For: ${r.title}`} /></div>
         </div>
       )}
     </div>
@@ -73,14 +111,24 @@ export function CardTeam({ full }: { full?: boolean }) {
 }
 
 export function CardRecords() {
-  const { toast } = useApp();
+  const { dashboard } = useApp();
   const { documents } = useProviderCase();
+  const uploads = dashboard.role === "provider" ? dashboard.uploads : [];
   return (
     <div className="card">
-      <div className="hd"><h3>Your medical records &amp; documents</h3><button className="btn sm" onClick={() => toast(UPLOAD_TOAST)}><Icon name="upload" />Upload</button></div>
-      {!documents.length && <div className="empty">Nothing on file from you yet.</div>}
+      <div className="hd"><h3>Your medical records &amp; documents</h3><UploadButton /></div>
+      {!documents.length && !uploads.length && <div className="empty">Nothing on file from you yet.</div>}
       {documents.map((d) => (
         <div className="row r-doc" key={d.name}><Icon name="doc" /><div>{d.name}<small>{d.date}</small></div><Status kind={d.status} label={d.label} /></div>
+      ))}
+      {/* What they've uploaded here, and whether the firm has opened it yet. */}
+      {uploads.length > 0 && <div className="sect">Sent to the firm</div>}
+      {uploads.map((u) => (
+        <div className="row r-doc" key={u.id}>
+          <Icon name="upload" />
+          <div><a className="link" href={`/api/uploads/${u.id}`} target="_blank" rel="noreferrer">{u.fileName}</a><small>{[when(u.uploadedAt), u.note].filter(Boolean).join(" · ")}</small></div>
+          {u.openedAt ? <Status kind="good" label="Opened by the firm" /> : <span className="st"><Icon name="clock" sm />Sent</span>}
+        </div>
       ))}
     </div>
   );

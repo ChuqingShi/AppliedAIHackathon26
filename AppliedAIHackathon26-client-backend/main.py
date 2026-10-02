@@ -8,6 +8,7 @@ Then: open http://127.0.0.1:8000/login   (use 127.0.0.1, not localhost)
 """
 import json
 import os
+import re
 import secrets
 from datetime import datetime, timezone
 
@@ -316,3 +317,83 @@ def update_inquiry(inquiry_id: int, change: dict = Body(...)):
     if not row:
         raise HTTPException(404, "No such inquiry")
     return _inquiry(row)
+
+
+# ---- Files medical providers upload for the firm (SQLite + uploads/, never Clio) ----
+# Who may upload, list and open what is decided by the dashboard's routes
+# (client/src/app/api/uploads/): a provider uploads to their own case and sees
+# only their own files; the firm sees every file on the case.
+
+UPLOADS_DIR = "uploads"
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB, plenty for scanned records
+UPLOAD_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/heic", "image/tiff",
+                "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}
+
+
+def _upload(row) -> dict:
+    """An upload as the dashboard reads it (the Upload type in client/src/data/types.ts)."""
+    return {"id": row["id"], "provider": {"id": row["provider_id"], "name": row["provider_name"]},
+            "uploadedBy": row["uploaded_by"], "fileName": row["file_name"], "contentType": row["content_type"],
+            "size": row["size"], "note": row["note"], "uploadedAt": row["uploaded_at"], "openedAt": row["opened_at"]}
+
+
+@app.get("/cases/{case_id:path}/uploads")
+def uploads(case_id: str):
+    """Every file uploaded on the case, newest first."""
+    with connect() as conn:
+        rows = conn.execute("SELECT * FROM uploads WHERE case_id=? ORDER BY id DESC", (case_id,)).fetchall()
+    return [_upload(r) for r in rows]
+
+
+@app.post("/cases/{case_id:path}/uploads")
+async def upload_file(case_id: str, request: Request, provider_id: str, provider_name: str, uploaded_by: str,
+                      file_name: str, content_type: str, note: str | None = None):
+    """Save a file a provider uploaded. The file is the request body, as is; who sent
+    it and what it is come as query parameters (no multipart, so no extra dependency)."""
+    if content_type not in UPLOAD_TYPES:
+        raise HTTPException(415, "Upload a PDF, an image (JPEG, PNG, HEIC, TIFF) or a Word document")
+    data = await request.body()
+    if not data:
+        raise HTTPException(422, "That file is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(413, "That file is larger than 20 MB")
+    name = os.path.basename(file_name.replace("\\", "/"))[:200] or "upload"
+    safe = re.sub(r'[<>:"/\|?*\x00-\x1f]', "_", name)
+    with connect() as conn:
+        cur = conn.execute(
+            """INSERT INTO uploads(case_id, provider_id, provider_name, uploaded_by, file_name, content_type,
+                                   size, note, path, uploaded_at) VALUES (?,?,?,?,?,?,?,?,?,?)""",
+            (case_id, provider_id, provider_name[:200], uploaded_by[:200], name, content_type, len(data),
+             (note or "")[:500] or None, "", _now()))
+        upload_id = cur.lastrowid
+        # saved under its own id, so two files with the same name never collide
+        folder = os.path.join(UPLOADS_DIR, re.sub(r"[^A-Za-z0-9._-]", "_", case_id))
+        os.makedirs(folder, exist_ok=True)
+        path = os.path.join(folder, f"{upload_id}__{safe}")
+        with open(path, "wb") as f:
+            f.write(data)
+        conn.execute("UPDATE uploads SET path=? WHERE id=?", (path, upload_id))
+        return _upload(conn.execute("SELECT * FROM uploads WHERE id=?", (upload_id,)).fetchone())
+
+
+@app.get("/uploads/{upload_id}")
+def upload_info(upload_id: int):
+    """One upload's details (the dashboard checks who may open it before fetching the file)."""
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM uploads WHERE id=?", (upload_id,)).fetchone()
+    if not row:
+        raise HTTPException(404, "No such upload")
+    return {**_upload(row), "caseId": row["case_id"]}
+
+
+@app.get("/uploads/{upload_id}/file")
+def upload_file_content(upload_id: int, opened_by_firm: bool = False):
+    """The uploaded file itself. opened_by_firm marks when the firm first opened it."""
+    with connect() as conn:
+        row = conn.execute("SELECT * FROM uploads WHERE id=?", (upload_id,)).fetchone()
+        if not row or not os.path.isfile(row["path"]):
+            raise HTTPException(404, "No such upload")
+        if opened_by_firm:
+            conn.execute("UPDATE uploads SET opened_at=? WHERE id=? AND opened_at IS NULL", (_now(), upload_id))
+    return FileResponse(row["path"], media_type=row["content_type"], filename=row["file_name"],
+                        content_disposition_type="inline", headers={"Cache-Control": "private, no-store"})

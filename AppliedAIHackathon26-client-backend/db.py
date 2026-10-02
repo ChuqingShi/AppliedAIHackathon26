@@ -86,6 +86,23 @@ CREATE TABLE IF NOT EXISTS inquiries (
     replied_at TEXT,
     closed_at TEXT
 );
+
+-- Files a medical provider uploaded for the firm from their dashboard (records,
+-- bills, letters). Clio is read-only, so they are kept here and in uploads/.
+CREATE TABLE IF NOT EXISTS uploads (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    case_id TEXT NOT NULL,          -- the case's id on the dashboard (the matter's display number)
+    provider_id TEXT NOT NULL,      -- the provider's id on the dashboard
+    provider_name TEXT NOT NULL,
+    uploaded_by TEXT NOT NULL,      -- the person signed in when it was sent
+    file_name TEXT NOT NULL,        -- as the provider named it
+    content_type TEXT NOT NULL,
+    size INTEGER NOT NULL,
+    note TEXT,                      -- what it is for, e.g. the request it answers
+    path TEXT NOT NULL,             -- where it is saved, under uploads/
+    uploaded_at TEXT NOT NULL,
+    opened_at TEXT                  -- when the firm first opened it
+);
 """
 
 

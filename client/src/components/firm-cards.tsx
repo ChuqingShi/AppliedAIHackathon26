@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useRef } from "react";
 import type { ReactNode } from "react";
-import type { Case, CaseUpdate, Client, Injury, Inquiry, Task } from "@/data/types";
+import type { Case, CaseUpdate, Client, Injury, Inquiry, Task, Upload } from "@/data/types";
 import { CaseStatusBadge, useApp, useFirmCase } from "./AppShell";
-import { newAnswers } from "./format";
+import { newAnswers, when } from "./format";
 import { Icon } from "./Icon";
 import { FirmOnly, Go, PhotoIdThumb, Status, billsTotal, day, money, moneyK } from "./ui";
 
@@ -265,6 +265,29 @@ export function CardDocs() {
   );
 }
 
+// Files medical providers uploaded for the firm from their dashboards (not in Clio).
+// "New" until someone at the firm opens it; opening it also tells the provider.
+export function CardUploads() {
+  const { dashboard } = useApp();
+  const uploads = dashboard.role === "firm" ? dashboard.uploads : [];
+  return (
+    <div className="card">
+      <div className="hd"><h3>From medical providers</h3><FirmOnly /></div>
+      {!uploads.length && <div className="empty">Nothing uploaded by providers yet.</div>}
+      {uploads.map((u) => (
+        <div className="row r-doc" key={u.id}>
+          <Icon name="upload" />
+          <div>
+            <a className="link" href={`/api/uploads/${u.id}`} target="_blank" rel="noreferrer">{u.fileName}</a>
+            <small>{[u.provider.name, when(u.uploadedAt), u.note].filter(Boolean).join(" · ")}</small>
+          </div>
+          {u.openedAt ? <span className="st"><Icon name="check" sm />Opened</span> : <Status kind="warn" label="New" />}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CardDocsFull() {
   const { documents } = useFirmCase();
   return (
@@ -315,8 +338,9 @@ export interface Alert { text: string; to: string }
 // questions the firm sent out, then, worst first, overdue to-dos, to-dos due
 // this week, providers we're still waiting on, and a statute of limitations that
 // is close, passed or missing. Each links to the page where it gets dealt with.
-export function attention(c: Case, inquiries: Inquiry[]): Alert[] {
+export function attention(c: Case, inquiries: Inquiry[], uploads: Upload[] = []): Alert[] {
   const answers = newAnswers(inquiries).length;
+  const newFiles = uploads.filter((u) => !u.openedAt).length;
   const overdue = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft < 0);
   const soon = c.tasks.filter((t) => t.daysLeft != null && t.daysLeft >= 0 && t.daysLeft <= 7);
   const waiting = c.providers.filter((p) => p.bill === "warn" || p.records === "warn");
@@ -324,6 +348,7 @@ export function attention(c: Case, inquiries: Inquiry[]): Alert[] {
   const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
   return [
     answers ? { text: `${plural(answers, "new answer", "new answers")} to your questions`, to: "questions" } : null,
+    newFiles ? { text: `${plural(newFiles, "new file", "new files")} from providers`, to: "documents" } : null,
     overdue.length ? { text: `${plural(overdue.length, "to-do", "to-dos")} overdue`, to: "todo" } : null,
     soon.length ? { text: `${plural(soon.length, "to-do", "to-dos")} due this week`, to: "todo" } : null,
     waiting.length ? { text: `Waiting on ${plural(waiting.length, "provider", "providers")}`, to: "providers" } : null,
@@ -336,7 +361,8 @@ export function attention(c: Case, inquiries: Inquiry[]): Alert[] {
 
 export function CardAttention() {
   const c = useFirmCase();
-  const alerts = attention(c, useApp().dashboard.inquiries);
+  const { dashboard } = useApp();
+  const alerts = attention(c, dashboard.inquiries, dashboard.role === "firm" ? dashboard.uploads : []);
   // the next to-do that isn't overdue yet: what to work on after the alerts
   const next = c.tasks.find((t) => t.daysLeft == null || t.daysLeft >= 0);
   return (
