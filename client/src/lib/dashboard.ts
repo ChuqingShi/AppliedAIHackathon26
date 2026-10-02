@@ -7,7 +7,7 @@ import { cache } from "react";
 import { forClient, forProvider, loadCase } from "@/data/case";
 import type { Dashboard } from "@/data/types";
 import { CLIENT } from "@/data/nav";
-import { briefing } from "./assistant";
+import { briefing, briefingForClient, briefingForProvider } from "./assistant";
 import { getHistory } from "./history";
 import { getInquiries } from "./inquiries";
 import { getUploads } from "./uploads";
@@ -26,11 +26,19 @@ export const getDashboard = cache(async (): Promise<Dashboard> => {
   const sentTo = (id: string) => inquiries.filter((q) => q.to.id === id).map((q) => ({ ...q, asked: null }));
   // Files providers uploaded for the firm: the firm gets them all, a provider only their own.
   const uploads = account.role === "client" ? [] : await getUploads(c.id);
+  // What this user asked the assistant before. It is kept per account, so no one gets another's.
+  const history = await getHistory(account.id, c.id);
   switch (account.role) {
-    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries, history: await getHistory(account.id, c.id), uploads };
-    case "provider": return { role: "provider", user, case: forProvider(c, account.providerId), inquiries: sentTo(account.providerId),
-      uploads: uploads.filter((u) => u.provider.id === account.providerId) };
+    case "firm": return { role: "firm", user, case: c, briefing: briefing(c), inquiries, history, uploads };
+    case "provider": {
+      const [mine, asked] = [forProvider(c, account.providerId), sentTo(account.providerId)];
+      return { role: "provider", user, case: mine, briefing: briefingForProvider(mine, asked), inquiries: asked, history,
+        uploads: uploads.filter((u) => u.provider.id === account.providerId) };
+    }
     // The client goes by the name on their record, which they can change.
-    case "client": return { role: "client", user: { ...user, name: c.client.name, initials: c.client.initials }, case: forClient(c), inquiries: sentTo(CLIENT) };
+    case "client": {
+      const [mine, asked] = [forClient(c), sentTo(CLIENT)];
+      return { role: "client", user: { ...user, name: c.client.name, initials: c.client.initials }, case: mine, briefing: briefingForClient(mine, asked), inquiries: asked, history };
+    }
   }
 });

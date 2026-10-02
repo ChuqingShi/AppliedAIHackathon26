@@ -4,14 +4,21 @@ import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { sendInquiry } from "@/app/actions";
-import type { ChatMessage, Dashboard, Draft, Passage } from "@/data/types";
-import { useApp, useFirmCase } from "./AppShell";
-import { day, recipients } from "./format";
+import { DETAILS } from "@/data/details";
+import type { Role } from "@/data/nav";
+import type { ChatMessage, Dashboard, Draft, Inquiry, Passage } from "@/data/types";
+import { mainContact, useApp, useFirmCase } from "./AppShell";
+import { day, recipients, when } from "./format";
 import { Icon } from "./Icon";
 import type { IconName } from "./Icon";
 import { FirmOnly, Rich, money } from "./ui";
 
-const SUGGESTED = ["What changed this week?", "How far apart are we?", "What's still missing?", "What's due next?", "What are the latest injury updates?"];
+// Questions offered under the assistant, each answerable from that role's own record.
+const SUGGESTED: Record<Role, string[]> = {
+  firm: ["What changed this week?", "How far apart are we?", "What's still missing?", "What's due next?", "What are the latest injury updates?"],
+  provider: ["What does the firm need from me?", "Where is the case?", "What's my lien balance?", "What's on file from me?", "Any questions for me?"],
+  client: ["Where is my case?", "Who is working on my case?", "What details are on file for me?", "Who is treating me?", "Any questions for me?"],
+};
 const HINT_MS = 3200;
 // The documents are searched once typing has paused this long, and from this many letters.
 const SEARCH_MS = 250;
@@ -19,7 +26,12 @@ const SEARCH_FROM = 3;
 
 interface Hit { label: string; sub: string; go: string; icon: IconName }
 
-// Search only looks at the record the signed-in role was given.
+// The questions the firm sent a provider or the client, as search results.
+const asked = (inquiries: Inquiry[]): Hit[] =>
+  inquiries.map((q) => ({ label: q.message, sub: `Question from ${q.from} · ${day(q.sentAt.slice(0, 10))}`, go: "questions", icon: "msg" }));
+
+// Search only looks at the record the signed-in role was given. A provider's
+// leaves out the patient's personal details; the client's has no documents in it.
 function searchIndex(d: Dashboard): Hit[] {
   if (d.role === "firm") {
     const c = d.case;
@@ -39,9 +51,22 @@ function searchIndex(d: Dashboard): Hit[] {
       ...p.updates.map((u) => ({ label: u.t, sub: `Update · ${u.date}`, go: "progress", icon: "clock" as const })),
       ...p.team.map((m) => ({ label: m.name, sub: `Legal team · ${m.role}`, go: "team", icon: "users" as const })),
       ...p.injuries.map((j) => ({ label: j.name, sub: `Injury · ${j.status}`, go: "patient", icon: "user" as const })),
+      ...p.requests.map((r) => ({ label: r.title, sub: `Needed from you · due ${r.due}`, go: "progress", icon: "task" as const })),
+      ...d.uploads.map((u) => ({ label: u.fileName, sub: `Sent to the firm · ${when(u.uploadedAt)}`, go: "records", icon: "upload" as const })),
+      ...asked(d.inquiries),
+      { label: "Your bill and lien balance", sub: `Your bill · ${money(p.lien)}`, go: "records", icon: "dollar" },
     ];
   }
-  return [];
+  const c = d.case;
+  return [
+    ...DETAILS.flatMap((f) => (c.client[f.key] ? [{ label: f.key === "dob" ? day(c.client.dob) : c.client[f.key]!, sub: `Your details · ${f.label}`, go: "profile", icon: "user" as const }] : [])),
+    { label: `${c.incident.type}. ${c.incident.summary}`, sub: `Your incident · ${c.incident.date}`, go: "profile", icon: "cal" },
+    ...c.injuries.map((j) => ({ label: j.name, sub: `Your injuries · ${j.status}`, go: "profile", icon: "user" as const })),
+    ...c.team.map((m) => ({ label: m.name, sub: `Your legal team · ${m.role}`, go: "overview", icon: "users" as const })),
+    ...c.providers.map((p) => ({ label: p.name, sub: p.since ? `Medical provider · treating you since ${p.since}` : "Medical provider", go: "overview", icon: "users" as const })),
+    ...asked(d.inquiries),
+    { label: c.stages[c.stageIndex].name, sub: `Where your case stands · stage ${c.stageIndex + 1} of ${c.stages.length}`, go: "overview", icon: "clock" },
+  ];
 }
 
 // Opens the document at the page a passage is on.
@@ -53,19 +78,27 @@ function hints(d: Dashboard): string[] {
   const like = (what: string, example?: string) => (example ? `${what}, like “${example}”` : null);
   const all = d.role === "firm" ? [
     like("Search documents", d.case.documents[0]?.name),
-    like("Ask a question", SUGGESTED[1]),
+    like("Ask a question", SUGGESTED.firm[1]),
     like("Ask what a document says", d.case.documents[0]?.name),
     like("Find a medical provider", d.case.providers[0]?.name),
     like("Search to-dos", d.case.tasks[0]?.title),
-    like("Ask the assistant", SUGGESTED[0]),
+    like("Ask the assistant", SUGGESTED.firm[0]),
     like("Look up an update", d.case.updates[0]?.firm.t),
     like("Search by person", d.case.client.name),
   ] : d.role === "provider" ? [
     like("Search your documents", d.case.documents[0]?.name),
+    like("Ask a question", SUGGESTED.provider[0]),
     like("Look up an update", d.case.updates[0]?.t),
     like("Find someone on the legal team", d.case.team[0]?.name),
+    like("Ask the assistant", SUGGESTED.provider[1]),
     like("Search the injuries on this case", d.case.injuries[0]?.name),
-  ] : [];
+  ] : [
+    like("Ask a question", SUGGESTED.client[0]),
+    like("Find someone on your legal team", d.case.team[0]?.name),
+    like("Look up who is treating you", d.case.providers[0]?.name),
+    like("Ask the assistant", SUGGESTED.client[2]),
+    like("Search your injuries", d.case.injuries[0]?.name),
+  ];
   const usable = all.filter((h): h is string => h !== null);
   return usable.length ? usable : ["Search this case"];
 }
@@ -141,17 +174,26 @@ function HistoryItem({ asked, reply, onAsk }: { asked: ChatMessage; reply?: Chat
   );
 }
 
-// The one box in the top bar, for searching the case and (for the firm) asking
-// the assistant. Two dropdowns open under it while there is something typed:
-// matches in the case on the left, the assistant on the right. For the firm the
-// matches include the pages of the case's documents that say what was typed,
-// and the assistant answers from everything held on the case. When the case
-// doesn't hold the answer, it offers a message to whoever would know. The clock
-// button opens the history instead: everything asked before, which the box then
-// searches. They close on Escape or a click elsewhere.
+// The one box in the top bar, for searching the case and asking the assistant.
+// It is the same for the firm, a medical provider and the client; what differs
+// is what it reaches, which is the record the server built for whoever is signed
+// in. Two dropdowns open under it while there is something typed: matches in the
+// case on the left, the assistant on the right. The clock button opens the
+// history instead: everything asked before, which the box then searches. They
+// close on Escape or a click elsewhere.
+//
+// For the firm the matches include the pages of the case's documents that say
+// what was typed, the assistant answers from everything held on the case, and
+// when the case doesn't hold the answer it offers a message to whoever would
+// know. A provider and the client are matched and answered from their own record
+// only, never from what the documents say, and are pointed to the legal team for
+// what their record doesn't hold.
 export function SearchBar() {
-  const { dashboard, chat, thinking, ask, clearChat } = useApp();
-  const canAsk = dashboard.role === "firm";
+  const { dashboard, role, chat, thinking, ask, clearChat, openMessage } = useApp();
+  // Only the firm's search reads the documents themselves (src/app/api/search/route.ts refuses anyone else).
+  const readsDocuments = role === "firm";
+  // Who a provider or the client is pointed to for what their record doesn't hold.
+  const contact = dashboard.role === "firm" ? null : mainContact(dashboard.case.team, dashboard.case.firm);
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [history, setHistory] = useState(false);
@@ -176,7 +218,7 @@ export function SearchBar() {
   // What the documents say about what is typed, looked up once typing pauses.
   // The last pages found stay up until the next ones arrive.
   const [found, setFound] = useState<Passage[]>([]);
-  const searching = canAsk && q.length >= SEARCH_FROM;
+  const searching = readsDocuments && q.length >= SEARCH_FROM;
   useEffect(() => {
     if (!searching) return;
     const stop = new AbortController();
@@ -219,7 +261,7 @@ export function SearchBar() {
   function submit(e: FormEvent) {
     e.preventDefault();
     if (history) return;
-    if (canAsk && q) ask(q);
+    if (q) ask(q);
     setOpen(true);
   }
 
@@ -248,16 +290,14 @@ export function SearchBar() {
             onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
             onFocus={() => setOpen(true)}
             onClick={() => setOpen(true)}
-            aria-label={history ? "Search your history" : canAsk ? "Search or ask about this case" : "Search this case"}
+            aria-label={history ? "Search your history" : "Search or ask about this case"}
             autoComplete="off"
           />
           {!query && <span className="ph" key={history ? "history" : tip} aria-hidden="true">{history ? "Search what you asked before" : tips[tip % tips.length]}</span>}
         </div>
-        {canAsk && (
-          <button type="button" className={history ? "hist-btn on" : "hist-btn"} aria-pressed={history} aria-label="Search history" title="Search history"
-            onClick={() => { setHistory(!history); setOpen(true); }}><Icon name="clock" /></button>
-        )}
-        {canAsk && <button aria-label="Ask the assistant" title="Ask the assistant"><Icon name="spark" /></button>}
+        <button type="button" className={history ? "hist-btn on" : "hist-btn"} aria-pressed={history} aria-label="Search history" title="Search history"
+          onClick={() => { setHistory(!history); setOpen(true); }}><Icon name="clock" /></button>
+        <button aria-label="Ask the assistant" title="Ask the assistant"><Icon name="spark" /></button>
       </form>
       {showing && history && (
         <div className="drops">
@@ -297,29 +337,29 @@ export function SearchBar() {
               {!matches && <div className="empty">Nothing on this case matches that search.</div>}
             </div>
           </div>
-          {canAsk && (
-            <div className="drop">
-              <div className="hd"><h3>Assistant</h3><FirmOnly /></div>
-              <div className="log" ref={log} aria-live="polite">
-                {chat.map((m, i) => (
-                  <div key={i} className={m.me ? "bubble me" : "bubble"}>
-                    {/* a new day in the conversation */}
-                    {m.me && m.at && day(m.at.slice(0, 10)) !== day(chat.slice(0, i).findLast((x) => x.me && x.at)?.at?.slice(0, 10) ?? "") && <small className="when">{day(m.at.slice(0, 10))}</small>}
-                    <Rich text={m.text} />
-                    {m.sources?.length ? (
-                      <div className="srcs">
-                        {m.sources.map((p, n) => <a key={n} href={pageLink(p)} target="_blank" rel="noreferrer" title={p.snippet.replaceAll("**", "")}><b>{n + 1}</b>{p.name}, p. {p.page}</a>)}
-                      </div>
-                    ) : null}
-                    {m.draft && m.asked ? <AskSomeone asked={m.asked} draft={m.draft} missing={Boolean(m.missing)} onLeave={leave} /> : null}
-                  </div>
-                ))}
-                {thinking && <div className="bubble wait">Looking at the case…</div>}
-              </div>
-              {q !== lastAsked && <button className="asknow" onClick={() => ask(q)}><Icon name="spark" sm /><span>Press Enter to ask “{q}”</span></button>}
-              <div className="chips">{SUGGESTED.map((s) => <button key={s} onClick={() => { setQuery(s); ask(s); }}>{s}</button>)}</div>
+          <div className="drop">
+            <div className="hd"><h3>Assistant</h3>{role === "firm" ? <FirmOnly /> : <span className="tag shared"><Icon name="lock" sm />Your record only</span>}</div>
+            <div className="log" ref={log} aria-live="polite">
+              {chat.map((m, i) => (
+                <div key={i} className={m.me ? "bubble me" : "bubble"}>
+                  {/* a new day in the conversation */}
+                  {m.me && m.at && day(m.at.slice(0, 10)) !== day(chat.slice(0, i).findLast((x) => x.me && x.at)?.at?.slice(0, 10) ?? "") && <small className="when">{day(m.at.slice(0, 10))}</small>}
+                  <Rich text={m.text} />
+                  {m.sources?.length ? (
+                    <div className="srcs">
+                      {m.sources.map((p, n) => <a key={n} href={pageLink(p)} target="_blank" rel="noreferrer" title={p.snippet.replaceAll("**", "")}><b>{n + 1}</b>{p.name}, p. {p.page}</a>)}
+                    </div>
+                  ) : null}
+                  {m.draft && m.asked ? <AskSomeone asked={m.asked} draft={m.draft} missing={Boolean(m.missing)} onLeave={leave} /> : null}
+                  {/* What a provider's or the client's record doesn't hold, their legal team would know. */}
+                  {contact && m.missing ? <button className="asklink" onClick={() => { leave(); openMessage(contact); }}><Icon name="msg" sm />Message {contact} about this</button> : null}
+                </div>
+              ))}
+              {thinking && <div className="bubble wait">Looking at the case…</div>}
             </div>
-          )}
+            {q !== lastAsked && <button className="asknow" onClick={() => ask(q)}><Icon name="spark" sm /><span>Press Enter to ask “{q}”</span></button>}
+            <div className="chips">{SUGGESTED[role].map((s) => <button key={s} onClick={() => { setQuery(s); ask(s); }}>{s}</button>)}</div>
+          </div>
         </div>
       )}
     </div>

@@ -101,8 +101,8 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
   const role = dashboard.role;
   const view = params.view ?? "overview";
 
-  // The firm's past conversation with the assistant, then today's briefing.
-  const [chat, setChat] = useState<ChatMessage[]>(dashboard.role === "firm" ? [...dashboard.history, { text: dashboard.briefing }] : []);
+  // The user's past conversation with the assistant, then today's briefing.
+  const [chat, setChat] = useState<ChatMessage[]>([...dashboard.history, { text: dashboard.briefing }]);
   const [asking, setAsking] = useState(0);
   const ask = useCallback(async (question: string) => {
     const q = question.trim();
@@ -128,7 +128,7 @@ export function AppShell({ dashboard, overview: savedOverview, demoAccounts, bri
   }, []);
 
   const clearChat = useCallback(async () => {
-    setChat(dashboard.role === "firm" ? [{ text: dashboard.briefing }] : []);
+    setChat([{ text: dashboard.briefing }]);
     try {
       await forgetHistory();
     } catch {
@@ -252,7 +252,7 @@ export function CaseStatusBadge({ closed }: { closed: string | null }) {
 }
 
 // The legal team member marked as the main contact (else the first), or the firm itself.
-function mainContact(team: { name: string; main?: boolean }[], firm: string) {
+export function mainContact(team: { name: string; main?: boolean }[], firm: string) {
   return (team.find((m) => m.main) ?? team[0])?.name ?? firm;
 }
 
@@ -346,7 +346,7 @@ function Sidebar({ demoAccounts }: { demoAccounts: DemoAccount[] }) {
   );
 }
 
-// Stays put above every view: the search box (which is also how the firm asks
+// Stays put above every view: the search box (which is also how every role asks
 // the assistant) and, under it, a quiet one-line progress bar. The case itself is named in the sidebar.
 function StickyHeader() {
   const { dashboard } = useApp();

@@ -26,9 +26,10 @@ export interface Draft { to: string; message: string }
 // `draft` is a message asking for the answer from whoever would have it; with
 // `missing`, the case doesn't hold the answer, so sending that message is the next step.
 export interface Reply { text: string; sources: Passage[]; draft?: Draft; missing?: boolean }
-// One message in the firm's conversation with the assistant: what the firm asked
+// One message in a user's conversation with the assistant: what they asked
 // (`me`), or the assistant's reply with the question it answers (`asked`). Saved
-// ones have `at`, when they were said.
+// ones have `at`, when they were said. Only the firm's replies carry `sources`
+// and a `draft`: no one else is answered from the documents or sends questions out.
 export interface ChatMessage extends Partial<Reply> { me?: boolean; text: string; asked?: string; at?: string }
 // A question the firm sent to a medical provider or the client, and how far it has
 // got: sent, seen by them, answered, closed by the firm. Times are ISO timestamps.
@@ -177,10 +178,11 @@ export interface Upload {
 // One dashboard, three roles: the signed-in user's role decides which record
 // the server builds, and so what the browser receives. `inquiries` are the
 // questions the firm has sent: all of them for the firm, and for a provider or
-// the client the ones sent to them. `history` is the firm user's past conversation
-// with the assistant. `uploads`: the firm gets every file providers sent on the
-// case; a provider only their own.
+// the client the ones sent to them. `briefing` is the catch-up the assistant opens
+// with and `history` the user's own past conversation with it; both are built from
+// that role's record only. `uploads`: the firm gets every file providers sent on
+// the case; a provider only their own.
 export type Dashboard =
   | { role: "firm"; user: User; case: Case; briefing: string; inquiries: Inquiry[]; history: ChatMessage[]; uploads: Upload[] }
-  | { role: "provider"; user: User; case: ProviderCase; inquiries: Inquiry[]; uploads: Upload[] }
-  | { role: "client"; user: User; case: ClientCase; inquiries: Inquiry[] };
+  | { role: "provider"; user: User; case: ProviderCase; briefing: string; inquiries: Inquiry[]; history: ChatMessage[]; uploads: Upload[] }
+  | { role: "client"; user: User; case: ClientCase; briefing: string; inquiries: Inquiry[]; history: ChatMessage[] };

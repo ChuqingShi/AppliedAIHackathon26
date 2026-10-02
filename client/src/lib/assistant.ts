@@ -1,9 +1,22 @@
-// "Ask about this case", firm only. A question is answered from everything held
-// on the case: the case record, the facts the backend drew from its documents,
-// the pages of those documents that match the question, and the answers to the
-// questions the firm has already sent out. When the case doesn't hold the
-// answer, the reply says so and comes with a message to whoever would know (a
-// medical provider or the client), ready to send from the search box.
+// "Ask about this case", in the search box. A question is answered only from
+// what the person asking may see: the record the server built for their role
+// (src/lib/dashboard.ts). Nothing else is put in front of the assistant, so it
+// has nothing else to give away.
+//
+// - The firm is answered from everything held on the case: the case record, the
+//   facts the backend drew from its documents, the pages of those documents that
+//   match the question, and the answers to the questions the firm has already
+//   sent out. When the case doesn't hold the answer, the reply says so and comes
+//   with a message to whoever would know (a medical provider or the client),
+//   ready to send from the search box.
+// - A medical provider is answered from their own record of the case: its stage,
+//   their bill and the documents the firm holds from them (by name), what the
+//   firm needs from them, the updates shared with them and the questions sent to
+//   them. The patient is named, but their personal details are left out, and so
+//   are the pages of the documents, which carry those details.
+// - The client is answered from what the firm holds about them, their incident
+//   and injuries, who is working on their case and the questions sent to them.
+//   Never from the case's documents or anything read out of them.
 //
 // Claude does the answering. Without credentials for the Claude API (set
 // ANTHROPIC_API_KEY), or when it can't be reached, keyword rules over the same
@@ -11,13 +24,16 @@
 
 import "server-only";
 import Anthropic from "@anthropic-ai/sdk";
-import { billsTotal, day, money, recipients } from "@/components/format";
+import { billsTotal, day, money, recipients, unanswered } from "@/components/format";
+import { DETAILS } from "@/data/details";
 import { CLIENT } from "@/data/nav";
-import type { Case, Dashboard, Draft, Passage, Reply } from "@/data/types";
+import type { Case, CaseFrame, ClientCase, Dashboard, Draft, Inquiry, Passage, ProviderCase, Reply } from "@/data/types";
 import { caseFacts, findPages } from "./passages";
 import type { Facts, Page, Treatment } from "./passages";
 
 type Firm = Extract<Dashboard, { role: "firm" }>;
+type Provider = Extract<Dashboard, { role: "provider" }>;
+type Client = Extract<Dashboard, { role: "client" }>;
 
 const MODEL = "claude-opus-5-5";
 // A treating provider's last record older than this says nothing about how the client is now.
@@ -31,6 +47,21 @@ Answer from that material and from nothing else. The firm acts on these answers,
 
 The firm can send a message through the dashboard to the client or to any medical provider on the case, and track the reply. Always fill "to" and "message" with the message that would get this question answered first-hand: when "answered" is false it is offered as the next step, otherwise it is kept one click away. "to" is the id of the recipient best placed to know: the provider treating the injury or giving the care in question (the one with the most recent records, if several fit), or the client for anything about themselves. "message" is sent as written, so write it complete, in the firm's voice, from the person asking: a short, courteous note that names the client, says exactly what is needed and as of when the firm's information stops, and can be answered in a few lines. It is read outside the firm, so put nothing in it from the firm's notes, strategy or figures, and nothing about other providers. If a question already sent covers this and is still unanswered, say so in "answer" (who was asked, when, and whether they have seen it) instead of suggesting it be asked again.`;
 
+// How a reply is to be written, whoever it is for.
+const BUBBLE = `"answer" appears in a small chat bubble that renders plain text and **bold** only. Write a few plain sentences, leading with the answer, with no headings, lists or other markdown, and put the figures, dates and names the reader is looking for in **bold**.`;
+
+const PROVIDER_SYSTEM = `You are the assistant in the search box of a personal-injury law firm's case dashboard. The person asking works for a medical provider treating the firm's client, and is signed in to that provider's own view of one case. You are given everything that view holds: the stage the case has reached, the patient's name, the incident and the injuries, this provider's bill and lien balance, the documents the firm holds from them (by name), what the firm still needs from them, the updates the firm has shared with them, who is on the legal team, and the questions the firm has sent them with their replies.
+
+Answer from that material and from nothing else, and never guess. You have deliberately not been given the patient's personal details (date of birth, age, phone, email, home address, occupation, identity documents), what any document says, other providers' records or bills, or the firm's notes, strategy, case value and settlement figures. When a question asks for any of those, or for anything else the material doesn't say, say plainly that it isn't available here and that the legal team is who to ask, without speculating about what it might be, and set "answered" to false.
+
+${BUBBLE}`;
+
+const CLIENT_SYSTEM = `You are the assistant in the search box of a personal-injury law firm's case dashboard. The person asking is the firm's client, the injured person the case is about, signed in to their own view of it. You are given everything that view holds: what the firm holds about them personally, their incident and injuries, the stage their case has reached, who at the firm is working on it, the medical providers treating them, and the questions the firm has sent them with their replies.
+
+Answer from that material and from nothing else, and never guess. You have deliberately not been given the case's documents (court filings, medical records, bills, correspondence, expert reports) or anything read out of them, or the firm's notes, strategy, case value and settlement figures. When a question asks for any of those, or for anything else the material doesn't say, say plainly that it isn't available here and that their legal team can tell them, without speculating about what it might be, and set "answered" to false. You are not their lawyer: give no legal advice and don't predict how the case will go.
+
+Write to them directly ("you", "your case"), in everyday words. ${BUBBLE}`;
+
 // A short catch-up built from the latest updates and the next open task.
 export function briefing(c: Case) {
   const latest = c.updates.slice(0, 2).map((u) => `**${u.firm.t}** (${u.date})`);
@@ -40,6 +71,35 @@ export function briefing(c: Case) {
     next ? `Next due: **${next.title}**, ${next.due}.` : "",
   ].filter(Boolean);
   return parts.join(" ") || "Nothing has been recorded on this case yet.";
+}
+
+// How far the case has got, as every role is told it.
+function stage(c: CaseFrame) {
+  const s = c.stages[c.stageIndex];
+  return `**${s.name}** (stage ${c.stageIndex + 1} of ${c.stages.length}${s.date ? `, since ${s.date}` : ""})`;
+}
+
+// The questions from the firm still waiting on this provider or client.
+function waiting(inquiries: Inquiry[]) {
+  const n = unanswered(inquiries).length;
+  return n ? `**${n} question${n > 1 ? "s" : ""}** from your legal team ${n > 1 ? "are" : "is"} waiting for your answer, under **Questions for you**.` : "";
+}
+
+// The same for a medical provider: where the case is and what the firm is waiting on from them.
+export function briefingForProvider(c: ProviderCase, inquiries: Inquiry[]) {
+  const [need] = c.requests;
+  const [latest] = c.updates;
+  return [
+    `The case is in ${stage(c)}.`,
+    need ? `Needed from you: **${need.title}**, due ${need.due}.` : "",
+    waiting(inquiries),
+    latest ? `Latest update: **${latest.t}** (${latest.date}).` : "",
+  ].filter(Boolean).join(" ");
+}
+
+// And for the client: where their case is and whether the firm has asked them anything.
+export function briefingForClient(c: ClientCase, inquiries: Inquiry[]) {
+  return [`Your case is in ${stage(c)}.`, waiting(inquiries), "Ask about your case, your details or who is working on it."].filter(Boolean).join(" ");
 }
 
 const source = ({ docId, name, page, snippet }: Passage): Passage => ({ docId, name, page, snippet });
@@ -56,11 +116,11 @@ function cited(text: string, pages: Passage[]): Pick<Reply, "text" | "sources"> 
   return { text: renumbered.trim(), sources: order.map((n) => source(pages[n - 1])) };
 }
 
-// Claude's answer, or null when it can't be had (no credentials, the API is down
-// or it declined), which leaves the question to the rules below.
-async function ask(d: Firm, q: string, pages: Page[], facts: Facts): Promise<Reply | null> {
-  const to = recipients(d.case);
-  const excerpts = pages.map((p, i) => `<excerpt number="${i + 1}" document="${p.name}" page="${p.page}">\n${p.text}\n</excerpt>`);
+// One answer from Claude, as an object with the given properties, or null when
+// it can't be had (no credentials, the API is down or it declined), which leaves
+// the question to the rules below. `record` is what the asker's role may see and
+// `turn` what changes from one question to the next; Claude is sent nothing else.
+async function claude<T extends { answer: string }>(system: string, record: string, turn: string, properties: Record<string, object>): Promise<T | null> {
   try {
     const response = await new Anthropic().beta.messages.create({
       model: MODEL,
@@ -70,61 +130,112 @@ async function ask(d: Firm, q: string, pages: Page[], facts: Facts): Promise<Rep
         effort: "low",
         format: {
           type: "json_schema",
-          schema: {
-            type: "object",
-            properties: {
-              answer: { type: "string" },
-              answered: { type: "boolean" },
-              to: { type: "string", enum: to.map((r) => r.id) },
-              message: { type: "string" },
-            },
-            required: ["answer", "answered", "to", "message"],
-            additionalProperties: false,
-          },
+          schema: { type: "object", properties, required: Object.keys(properties), additionalProperties: false },
         },
       },
       // If the model's safety classifiers decline a question, a fallback model answers it.
       betas: ["server-side-fallback-2026-07-01"],
       fallbacks: "default",
       system: [
-        { type: "text", text: SYSTEM },
-        // The case is the same from one question to the next, so it is cached.
-        {
-          type: "text",
-          text: [
-            `The case record, as JSON:\n${JSON.stringify(d.case)}`,
-            `Facts read out of the case's documents (latest status per treating provider and the experts' conclusions, the documents by date, the bills), as JSON:\n${JSON.stringify(facts)}`,
-            `Who a message can be sent to, as JSON:\n${JSON.stringify(to)}`,
-          ].join("\n\n"),
-          cache_control: { type: "ephemeral" },
-        },
+        { type: "text", text: system },
+        // The record is the same from one question to the next, so it is cached.
+        { type: "text", text: record, cache_control: { type: "ephemeral" } },
       ],
-      messages: [{
-        role: "user",
-        content: [
-          `Today is ${new Date().toISOString().slice(0, 10)}. The person asking is ${d.user.name} (${d.user.title}) at ${d.case.firm}.`,
-          `Questions the firm has already sent, with any replies, as JSON:\n${JSON.stringify(d.inquiries)}`,
-          excerpts.length ? excerpts.join("\n\n") : "No page of the case's documents matches this question.",
-          `Question: ${q}`,
-        ].join("\n\n"),
-      }],
+      messages: [{ role: "user", content: turn }],
     });
     if (response.stop_reason !== "end_turn") return null;
-    const out: { answer: string; answered: boolean; to: string; message: string } = JSON.parse(
-      response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(""),
-    );
-    if (!out.answer.trim()) return null;
-    const draft = to.some((r) => r.id === out.to) && out.message.trim() ? { to: out.to, message: out.message.trim() } : undefined;
-    return { ...cited(out.answer, pages), draft, missing: !out.answered && Boolean(draft) };
+    const out: T = JSON.parse(response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join(""));
+    return out.answer.trim() ? out : null;
   } catch (error) {
     console.warn(`Assistant: answering without Claude. ${error instanceof Anthropic.APIError ? `The API returned ${error.status}: ${error.message}` : error}`);
     return null;
   }
 }
 
-// Answers a question about the case, saying which document pages the answer is
-// from and, when the case doesn't hold it, who to ask and what to send them.
-export async function reply(d: Firm, q: string): Promise<Reply> {
+const today = () => new Date().toISOString().slice(0, 10);
+
+// Claude's answer for the firm, from the whole case.
+async function ask(d: Firm, q: string, pages: Page[], facts: Facts): Promise<Reply | null> {
+  const to = recipients(d.case);
+  const excerpts = pages.map((p, i) => `<excerpt number="${i + 1}" document="${p.name}" page="${p.page}">\n${p.text}\n</excerpt>`);
+  const out = await claude<{ answer: string; answered: boolean; to: string; message: string }>(
+    SYSTEM,
+    [
+      `The case record, as JSON:\n${JSON.stringify(d.case)}`,
+      `Facts read out of the case's documents (latest status per treating provider and the experts' conclusions, the documents by date, the bills), as JSON:\n${JSON.stringify(facts)}`,
+      `Who a message can be sent to, as JSON:\n${JSON.stringify(to)}`,
+    ].join("\n\n"),
+    [
+      `Today is ${today()}. The person asking is ${d.user.name} (${d.user.title}) at ${d.case.firm}.`,
+      `Questions the firm has already sent, with any replies, as JSON:\n${JSON.stringify(d.inquiries)}`,
+      excerpts.length ? excerpts.join("\n\n") : "No page of the case's documents matches this question.",
+      `Question: ${q}`,
+    ].join("\n\n"),
+    { answer: { type: "string" }, answered: { type: "boolean" }, to: { type: "string", enum: to.map((r) => r.id) }, message: { type: "string" } },
+  );
+  if (!out) return null;
+  const draft = to.some((r) => r.id === out.to) && out.message.trim() ? { to: out.to, message: out.message.trim() } : undefined;
+  return { ...cited(out.answer, pages), draft, missing: !out.answered && Boolean(draft) };
+}
+
+// What a medical provider is answered from: their own record of the case, field
+// by field. Of the patient, only the name and how long they have been this
+// provider's patient: the rest of what the firm holds about them personally
+// (date of birth, age, contact details, occupation) is not the assistant's to
+// give out, so it is never handed to it.
+function providerRecord(d: Provider) {
+  const c = d.case;
+  return {
+    caseId: c.id, lawFirm: c.firm, you: c.provider.name,
+    stages: c.stages, currentStage: c.stages[c.stageIndex].name,
+    patient: { name: c.patient.name, yourPatientSince: c.patient.since },
+    incident: c.incident, injuries: c.injuries,
+    yourLienBalance: c.lien, yourBill: c.billLines,
+    yourDocumentsOnFile: c.documents,
+    filesYouSentTheFirm: d.uploads.map((u) => ({ fileName: u.fileName, note: u.note, uploadedAt: u.uploadedAt, openedByTheFirmAt: u.openedAt })),
+    neededFromYou: c.requests,
+    updatesSharedWithYou: c.updates,
+    legalTeam: c.team,
+  };
+}
+
+// What the client is answered from: their own record of the case. It holds no
+// document and nothing read out of one.
+function clientRecord(d: Client) {
+  const c = d.case;
+  return {
+    caseId: c.id, caseTitle: c.title, lawFirm: c.firm,
+    stages: c.stages, currentStage: c.stages[c.stageIndex].name,
+    yourDetails: c.client, incident: c.incident, injuries: c.injuries,
+    legalTeam: c.team, yourMedicalProviders: c.providers,
+  };
+}
+
+// Claude's answer for a medical provider or the client, from their own record.
+async function askOutside(d: Provider | Client, q: string): Promise<Reply | null> {
+  const [system, record, who] = d.role === "provider"
+    ? [PROVIDER_SYSTEM, providerRecord(d), `${d.user.name}, for ${d.case.provider.name}`]
+    : [CLIENT_SYSTEM, clientRecord(d), `${d.user.name}, the client`];
+  const asked = d.inquiries.map((i) => ({ from: i.from, message: i.message, sentAt: i.sentAt, reply: i.reply, repliedAt: i.repliedAt, closed: Boolean(i.closedAt) }));
+  const out = await claude<{ answer: string; answered: boolean }>(
+    system,
+    `What this person's view of the case holds, as JSON:\n${JSON.stringify(record)}`,
+    [
+      `Today is ${today()}. The person asking is ${who}.`,
+      `Questions the firm has sent them, with any replies, as JSON:\n${JSON.stringify(asked)}`,
+      `Question: ${q}`,
+    ].join("\n\n"),
+    { answer: { type: "string" }, answered: { type: "boolean" } },
+  );
+  return out && { text: out.answer.trim(), sources: [], missing: !out.answered };
+}
+
+// Answers a question about the case from what the asker's role may see. For the
+// firm, the reply says which document pages it is from and, when the case doesn't
+// hold the answer, who to ask and what to send them. A provider and the client
+// are told when their record doesn't say (`missing`), so they can ask the legal team.
+export async function reply(d: Dashboard, q: string): Promise<Reply> {
+  if (d.role !== "firm") return (await askOutside(d, q)) ?? (d.role === "provider" ? providerRule(d, q) : clientRule(d, q));
   const [pages, facts] = await Promise.all([findPages(q, true), caseFacts()]);
   return (await ask(d, q, pages, facts)) ?? byRule(d, q, pages, facts);
 }
@@ -278,4 +389,100 @@ function answer(c: Case, q: string) {
 
   if (/\b(changed|what'?s new|this week|happened|summary|catch (me )?up|recent\w*|latest|updates?)\b/.test(t)) return briefing(c);
   return null;
+}
+
+// ---- The same for a medical provider and for the client, over their own record ----
+
+// What the dashboard doesn't tell the person asking: the reply says so, and that the legal team would know.
+const notHere = (what: string): Reply => ({ text: `${what} Your legal team would know: you can message them from the sidebar.`, sources: [], missing: true });
+
+const LEGAL_TEAM = /\b(legal team|law firm|lawyers?|attorneys?|paralegals?|main contact|my contact|who (is|are) (working|handling)|who (do|can|should) i)\b/;
+// The firm's own side of the case, which neither a provider nor the client is given.
+const FIRM_ONLY = /\b(worth|case value|valu\w+|offers?|demand|policy( limits?)?|insur\w*|adjuster|strategy|notes?|fees?|costs?|settlement (amount|offer|figure|number|value)|how much (is|was|will) (the|my) (case|settlement))\b/;
+// What the firm holds about the client personally.
+const PERSONAL = /\b(phone|telephone|cell|mobile|e-?mail|address|lives?|birth\w*|dob|born|age|how old|occupation|job|employer|employed|languages?|ssn|social security|contact (details|info\w*)|personal (details|info\w*)|photo|licen[cs]e|identity)\b/;
+const QUESTIONS = /\b(questions?|asked|asking)\b/;
+const INJURIES = /\b(injur\w*|hurt|diagnos\w*|condition)\b/;
+const INCIDENT = /\b(incident|accident|collision|crash|happened)\b/;
+const STATUS = /\b(status|stages?|progress|going|settle\w*|trial|where|how far|how long|when|next|stand\w*)\b/;
+
+const team = (c: { team: { name: string; role: string; main?: boolean }[]; firm: string }) =>
+  c.team.length
+    ? `Your legal team at **${c.firm}**: ${c.team.map((m) => `**${m.name}** (${m.role}${m.main ? ", your main contact" : ""})`).join(", ")}.`
+    : `Your case is with **${c.firm}**.`;
+
+// The questions the firm has sent this provider or client, and where each stands.
+function questions(inquiries: Inquiry[]) {
+  if (!inquiries.length) return "Your legal team hasn't sent you any questions.";
+  const open = unanswered(inquiries);
+  const first = open[0];
+  return open.length
+    ? `${waiting(inquiries)} The ${open.length > 1 ? "latest" : "question"} is from **${first.from}** on ${day(first.sentAt.slice(0, 10))}: “${first.message}”`
+    : `You have answered every question your legal team sent you (${inquiries.length} so far). They are under **Questions for you**.`;
+}
+
+const injuries = (c: { injuries: ProviderCase["injuries"] }) =>
+  `Injuries on the case: ${c.injuries.map((j) => `**${j.name}**${j.status ? ` (${j.status.replace(/\.$/, "")})` : ""}`).join("; ") || "none recorded"}.`;
+
+function providerRule(d: Provider, q: string): Reply {
+  const c = d.case;
+  const t = q.toLowerCase();
+  const said = (text: string): Reply => ({ text, sources: [] });
+
+  if (LEGAL_TEAM.test(t)) return said(team(c));
+  // Asked of the firm's assistant, the patient's personal details stay with the firm.
+  if (PERSONAL.test(t)) return notHere("The patient's personal details aren't available through this assistant.");
+  if (FIRM_ONLY.test(t) || /\bother (providers?|doctors?)\b/.test(t)) return notHere("The firm's own figures and notes, and other providers' files, aren't shared here.");
+
+  if (/\b(need\w*|requests?|requested|outstanding|missing|waiting|overdue|due|owe you|to send|still)\b/.test(t)) {
+    if (!c.requests.length) return said(["The firm isn't waiting on anything from you right now.", waiting(d.inquiries)].filter(Boolean).join(" "));
+    return said(`The firm needs ${c.requests.map((r) => `**${r.title}**, due ${r.due} (${r.daysLeft >= 0 ? `${r.daysLeft} days left` : `${-r.daysLeft} days overdue`})`).join("; ")}. ${c.requests[0].detail} You can upload it under **Records & bills**.`);
+  }
+  if (QUESTIONS.test(t)) return said(questions(d.inquiries));
+  if (/\b(bill\w*|liens?|paid|pay\w*|balance|charges?|amounts?|invoices?|ledger|money|how much)\b/.test(t)) {
+    return said(`Your lien balance on this case is **${money(c.lien)}**${c.billLines.length ? ` (${c.billLines.map((l) => `${l.name}: ${money(l.amount)}`).join("; ")})` : ""}. Providers are paid at the final step, once there is a settlement.`);
+  }
+  if (/\b(records?|documents?|files?|charts?|upload\w*|received|on file|sent)\b/.test(t)) {
+    return said([
+      c.documents.length ? `On file from you: ${c.documents.map((x) => `**${x.name}** (${x.date.toLowerCase()})`).join("; ")}.` : "The firm has nothing on file from you yet.",
+      d.uploads.length ? `You have sent the firm ${d.uploads.length} file${d.uploads.length > 1 ? "s" : ""} here, most recently **${d.uploads[0].fileName}**${d.uploads[0].openedAt ? ", which they have opened" : ""}.` : "",
+    ].filter(Boolean).join(" "));
+  }
+  if (/\b(updates?|latest|new|changed|recent\w*|correspondence|this week)\b/.test(t)) {
+    return said(c.updates.length ? `Latest shared with you: ${c.updates.slice(0, 3).map((u) => `**${u.t}** (${u.date})`).join("; ")}.` : "No updates have been shared with you yet.");
+  }
+  if (INJURIES.test(t)) return said(injuries(c));
+  if (INCIDENT.test(t) || /\bpatient\b/.test(t)) {
+    return said(`**${c.patient.name}**${c.patient.since ? `, your patient since ${c.patient.since},` : ""} was in a ${c.incident.type.toLowerCase()} on **${c.incident.date}**. ${c.incident.summary} ${injuries(c)}`);
+  }
+  if (STATUS.test(t)) return said(`The case is in ${stage(c)}. You will be notified here as soon as there is a settlement.`);
+  return notHere("What is shared with you on this case doesn't say.");
+}
+
+function clientRule(d: Client, q: string): Reply {
+  const c = d.case;
+  const t = q.toLowerCase();
+  const said = (text: string): Reply => ({ text, sources: [] });
+
+  if (LEGAL_TEAM.test(t)) return said(team(c));
+  // Their own details are theirs to see (and to correct).
+  if (PERSONAL.test(t) || /\b(details|information|info|name)\b/.test(t)) {
+    const held = DETAILS.flatMap((f) => (c.client[f.key] ? [`${f.label.toLowerCase()} **${f.key === "dob" ? day(c.client.dob) : c.client[f.key]}**`] : []));
+    return said(`On file for you: ${held.join(", ") || "nothing yet"}. You can correct any of it under **My information**.`);
+  }
+  // The case file stays inside the firm.
+  if (FIRM_ONLY.test(t) || /\b(documents?|records?|files?|filings?|pleadings?|complaint|summons|subpoena|discovery|depositions?|experts?|reports?|bills?|billed|liens?|letters?|correspondence|money)\b/.test(t)) {
+    return notHere("The case's documents and the firm's own figures and notes aren't shared here.");
+  }
+  if (QUESTIONS.test(t)) return said(questions(d.inquiries));
+  if (/\b(providers?|doctors?|treat\w*|clinics?|hospitals?|therap\w*)\b/.test(t)) {
+    return said(c.providers.length ? `Treating you on this case: ${c.providers.map((p) => `**${p.name}**${p.since ? ` (since ${p.since})` : ""}`).join("; ")}.` : "No medical providers are recorded on your case yet.");
+  }
+  if (INJURIES.test(t)) return said(injuries(c));
+  if (INCIDENT.test(t)) return said(`Your case is about a ${c.incident.type.toLowerCase()} on **${c.incident.date}**${c.incident.location ? ` at ${c.incident.location}` : ""}. ${c.incident.summary}`);
+  if (STATUS.test(t)) {
+    const next = c.stages[c.stageIndex + 1];
+    return said(`Your case is in ${stage(c)}.${next ? ` The next stage is **${next.name}**.` : ""} ${waiting(d.inquiries)}`.trim());
+  }
+  return notHere("What is shared with you on your case doesn't say.");
 }

@@ -41,13 +41,14 @@ export async function currentAccount() {
   return (await getSession())?.id ?? null;
 }
 
+// Anyone signed in can ask. The assistant is handed the record built for the
+// asker's role and nothing more (src/lib/assistant.ts), so a medical provider or
+// the client is only ever answered from what their own dashboard shows.
 export async function askAssistant(question: string): Promise<ChatMessage> {
   const dashboard = await getDashboard();
-  // The assistant answers from the full case record, so it is for the firm only.
-  if (dashboard.role !== "firm") throw new Error("Forbidden");
   const q = String(question).slice(0, 2000);
   const answer: ChatMessage = { ...(await reply(dashboard, q)), asked: q, at: new Date().toISOString() };
-  // Kept, so the firm can go back over what they asked. Not keeping it doesn't lose the answer.
+  // Kept under the asker's own account, so they can go back over what they asked. Not keeping it doesn't lose the answer.
   await addHistory(dashboard.user.id, dashboard.case.id, [{ me: true, text: q, at: answer.at }, answer]).catch((e) => console.warn(`History: ${e}`));
   return answer;
 }
@@ -55,7 +56,6 @@ export async function askAssistant(question: string): Promise<ChatMessage> {
 // Forgets the signed-in user's conversation with the assistant on this case.
 export async function forgetHistory() {
   const dashboard = await getDashboard();
-  if (dashboard.role !== "firm") throw new Error("Forbidden");
   await clearHistory(dashboard.user.id, dashboard.case.id);
   refresh();
 }
