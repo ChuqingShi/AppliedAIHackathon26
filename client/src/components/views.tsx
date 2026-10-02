@@ -6,7 +6,7 @@ import { useApp } from "./AppShell";
 import { Overview, SectionTile } from "./Overview";
 import type { Tile } from "./Overview";
 import {
-  CardAssistant, CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
+  CardBreakdown, CardCaseFacts, CardClient, CardDocs, CardDocsFull,
   CardFinancials, CardProviderBills, CardTasks, CardUpdates,
 } from "./firm-cards";
 import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, CardTeam } from "./provider-cards";
@@ -15,7 +15,6 @@ import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, 
 // default; the rest are added from their section. A new tile is one entry here
 // plus a <SectionTile> wherever it should be offered.
 const T = {
-  assistant: { id: "assistant", title: "Ask about this case", row: 0, width: "340px", card: <CardAssistant /> },
   financials: { id: "financials", title: "Case financials", row: 0, card: <CardFinancials /> },
   client: { id: "client", title: "Client", row: 0, width: "320px", card: <CardClient /> },
   tasks: { id: "tasks", title: "Needed on this case", row: 1, card: <CardTasks limit={4} /> },
