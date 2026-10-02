@@ -16,6 +16,7 @@ import case_view
 import clio
 import sync as sync_mod
 from db import connect
+from digest import queries as doc_facts
 
 app = FastAPI(title="Sapini case dashboard API")
 # OAuth "state" values we handed out; /callback only accepts one of these (CSRF guard).
@@ -95,6 +96,35 @@ def document(doc_id: int):
         raise HTTPException(404, "That document has not been downloaded. Re-sync without --no-files.")
     name = os.path.basename(row["path"]).split("__", 1)[-1]
     return FileResponse(row["path"], filename=name, content_disposition_type="inline")
+
+
+# ---- Facts read out of the documents (built by `python -m digest`; firm only) ----
+
+@app.get("/case/recovery")
+def case_recovery(matter_id: int | None = None):
+    """Latest recovery status per treating provider and the expert conclusions, with quote and page."""
+    try:
+        return doc_facts.recovery(matter_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/case/bills")
+def case_bills(matter_id: int | None = None):
+    """Every charge line from the itemized bills, with exact per-provider totals."""
+    try:
+        return doc_facts.bills(matter_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
+
+
+@app.get("/case/timeline")
+def case_timeline(matter_id: int | None = None):
+    """Documents ordered by their real date (filing stamp, letter date, visit or statement date)."""
+    try:
+        return doc_facts.timeline(matter_id)
+    except LookupError as e:
+        raise HTTPException(404, str(e))
 
 
 @app.get("/case/provider")

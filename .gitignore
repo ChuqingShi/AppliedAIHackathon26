@@ -223,3 +223,7 @@ CLAUDE.md
 
 # Claude
 .claude/
+
+.DS_Store
+# Client documents downloaded from Clio (confidential, never commit)
+data/
