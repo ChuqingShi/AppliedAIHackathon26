@@ -3,3 +3,5 @@ uvicorn
 watchfiles
 requests
 python-dotenv
+pymupdf
+pytest
