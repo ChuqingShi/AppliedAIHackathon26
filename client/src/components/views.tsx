@@ -14,7 +14,7 @@ import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, 
 
 // Every tile the firm's overview can show. Those with a `row` are there by
 // default; the rest are added from their section. A new tile is one entry here
-// plus a <SectionTile> wherever it should be offered.
+// (or in P, for providers) plus a <SectionTile> wherever it should be offered.
 const T = {
   financials: { id: "financials", title: "Case financials", row: 0, size: "l", card: <CardFinancials /> },
   client: { id: "client", title: "Client", row: 0, card: <CardClient /> },
@@ -24,6 +24,17 @@ const T = {
   providerBills: { id: "provider-bills", title: "Medical bills by provider", size: "m", card: <CardProviderBills /> },
   breakdown: { id: "breakdown", title: "Settlement breakdown", card: <CardBreakdown /> },
   caseFacts: { id: "case-facts", title: "Case details", card: <CardCaseFacts /> },
+} satisfies Record<string, Tile>;
+
+// The same for a provider's overview. Each card is built from the provider's
+// own record, so a tile shows nothing its section doesn't.
+const P = {
+  progress: { id: "progress", title: "How the case is going", row: 0, card: <CardProgress /> },
+  patient: { id: "patient", title: "Patient", row: 0, card: <CardPatient /> },
+  team: { id: "team", title: "Legal team", row: 0, card: <CardTeam /> },
+  records: { id: "records", title: "Your medical records & documents", row: 1, size: "m", card: <CardRecords /> },
+  updates: { id: "status-updates", title: "Status updates", row: 1, card: <CardProviderUpdates limit={4} /> },
+  bill: { id: "bill", title: "Your bill", card: <CardBill /> },
 } satisfies Record<string, Tile>;
 
 // One entry per item in NAV (src/data/nav.ts).
@@ -55,16 +66,35 @@ const VIEWS: Record<Role, Record<string, () => ReactNode>> = {
     updates: () => <><h2>Updates</h2><SectionTile tile={T.updates}><CardUpdates /></SectionTile></>,
   },
   provider: {
-    overview: () => (
+    overview: () => <Overview tiles={Object.values(P)} />,
+    patient: () => (
       <>
-        <div className="grid g-ptop"><CardProgress /><CardPatient /><CardTeam /></div>
-        <div className="grid g-wide"><CardRecords /><CardProviderUpdates limit={4} /></div>
+        <h2>Patient &amp; injuries</h2>
+        <div className="grid g-2">
+          <SectionTile tile={P.patient}><CardPatient full /></SectionTile>
+          <SectionTile tile={P.records}><CardRecords /></SectionTile>
+        </div>
       </>
     ),
-    patient: () => <><h2>Patient &amp; injuries</h2><div className="grid g-2"><CardPatient full /><CardRecords /></div></>,
-    records: () => <><h2>Records &amp; bills</h2><div className="grid g-2"><CardRecords /><CardBill /></div></>,
-    progress: () => <><h2>Case progress</h2><div className="grid g-wide"><CardProviderUpdates /><CardProgress /></div></>,
-    team: () => <><h2>Legal team</h2><CardTeam full /></>,
+    records: () => (
+      <>
+        <h2>Records &amp; bills</h2>
+        <div className="grid g-2">
+          <SectionTile tile={P.records}><CardRecords /></SectionTile>
+          <SectionTile tile={P.bill}><CardBill /></SectionTile>
+        </div>
+      </>
+    ),
+    progress: () => (
+      <>
+        <h2>Case progress</h2>
+        <div className="grid g-wide">
+          <SectionTile tile={P.updates}><CardProviderUpdates /></SectionTile>
+          <SectionTile tile={P.progress}><CardProgress /></SectionTile>
+        </div>
+      </>
+    ),
+    team: () => <><h2>Legal team</h2><SectionTile tile={P.team}><CardTeam full /></SectionTile></>,
   },
   // The overview is a placeholder until the client's dashboard is designed.
   client: {

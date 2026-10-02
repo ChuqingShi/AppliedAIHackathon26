@@ -81,9 +81,8 @@ a { color: inherit; text-decoration: none; }
 .content > h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
 .grid { display: grid; gap: 16px; align-items: stretch; }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.g-ptop { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
 .g-wide { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-@media (max-width: 1250px) { .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1250px) { .g-wide, .g-2 { grid-template-columns: 1fr; } }
 
 /* tiles: a card plus the buttons at the end of its header that lock it in place and take it off the overview, or (in its section) put it on */
 .tile { position: relative; display: flex; flex-direction: column; min-width: 0; }
