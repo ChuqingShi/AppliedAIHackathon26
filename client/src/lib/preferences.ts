@@ -4,18 +4,35 @@
 
 import "server-only";
 import { cookies } from "next/headers";
+import type { OverviewLayout } from "@/data/types";
 
 const YEAR = 60 * 60 * 24 * 365;
-const hiddenTilesCookie = (accountId: string) => `caseboard_hidden_tiles_${accountId}`;
+const overviewCookie = (accountId: string) => `caseboard_overview_${accountId}`;
 
-// The overview tiles this user has removed, by tile id.
-export async function getHiddenTiles(accountId: string): Promise<string[]> {
-  const value = (await cookies()).get(hiddenTilesCookie(accountId))?.value;
-  return value ? value.split(",") : [];
+function tileIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const ids = value.filter((id): id is string => typeof id === "string" && /^[a-z-]{1,40}$/.test(id));
+  return [...new Set(ids)].slice(0, 40);
 }
 
-export async function setHiddenTiles(accountId: string, ids: string[]) {
-  (await cookies()).set(hiddenTilesCookie(accountId), ids.join(","), {
+// Whatever was stored or sent, reduced to a well-formed layout.
+function cleanLayout(value: unknown): OverviewLayout {
+  const v = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  return { removed: tileIds(v.removed), added: tileIds(v.added) };
+}
+
+// The tiles this user has taken off and put on their overview.
+export async function getOverviewLayout(accountId: string): Promise<OverviewLayout> {
+  const value = (await cookies()).get(overviewCookie(accountId))?.value;
+  try {
+    return cleanLayout(value ? JSON.parse(value) : null);
+  } catch {
+    return cleanLayout(null);
+  }
+}
+
+export async function setOverviewLayout(accountId: string, layout: unknown) {
+  (await cookies()).set(overviewCookie(accountId), JSON.stringify(cleanLayout(layout)), {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

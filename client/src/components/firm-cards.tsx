@@ -198,6 +198,7 @@ export function CardDocsFull() {
   const { documents } = useFirmCase();
   return (
     <div className="card">
+      <div className="hd"><h3>All documents</h3></div>
       <div className="row r-docfull th"><span /><span>Document</span><span>Type</span><span>Date</span><span /></div>
       {documents.map((d) => (
         <div className="row r-docfull" key={d.name}>

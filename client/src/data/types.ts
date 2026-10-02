@@ -84,6 +84,10 @@ export interface ClientCase extends CaseFrame {
 
 export interface User { id: string; name: string; initials: string; title: string }
 
+// What a user has changed on their overview, as tile ids: the tiles they took
+// off (in that order) and the ones they added from other sections.
+export interface OverviewLayout { removed: string[]; added: string[] }
+
 // One dashboard, three roles: the signed-in user's role decides which record
 // the server builds, and so what the browser receives.
 export type Dashboard =

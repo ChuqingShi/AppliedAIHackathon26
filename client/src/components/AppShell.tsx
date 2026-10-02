@@ -3,16 +3,16 @@
 // CaseBoard: one dashboard, three roles. What it shows comes from `dashboard`,
 // the record the server built for whoever is signed in. The shell owns
 // everything that outlives a single view: search, the assistant's chat log,
-// the message dialog and toasts.
+// the message dialog, toasts and what the user has put on their overview.
 
 import Link from "next/link";
 import { useParams, usePathname } from "next/navigation";
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, startTransition, useCallback, useContext, useEffect, useMemo, useOptimistic, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { askAssistant, login, logout } from "@/app/actions";
+import { askAssistant, login, logout, saveOverviewLayout } from "@/app/actions";
 import { NAV } from "@/data/nav";
 import type { Role } from "@/data/nav";
-import type { Case, Dashboard, ProviderCase } from "@/data/types";
+import type { Case, Dashboard, OverviewLayout, ProviderCase } from "@/data/types";
 import { Icon } from "./Icon";
 import { SearchResults } from "./SearchResults";
 
@@ -21,8 +21,8 @@ export interface DemoAccount { id: string; role: Role }
 
 interface App {
   dashboard: Dashboard;
-  // Overview tiles this user has removed, as last saved.
-  hiddenTiles: string[];
+  overview: OverviewLayout;
+  setOverview: (layout: OverviewLayout) => void;
   role: Role;
   view: string;
   query: string;
@@ -55,7 +55,7 @@ export function useProviderCase(): ProviderCase {
   return dashboard.case;
 }
 
-export function AppShell({ dashboard, hiddenTiles, demoAccounts, children }: { dashboard: Dashboard; hiddenTiles: string[]; demoAccounts: DemoAccount[]; children: ReactNode }) {
+export function AppShell({ dashboard, overview: savedOverview, demoAccounts, children }: { dashboard: Dashboard; overview: OverviewLayout; demoAccounts: DemoAccount[]; children: ReactNode }) {
   const params = useParams<{ view?: string }>();
   const pathname = usePathname();
   const role = dashboard.role;
@@ -91,6 +91,19 @@ export function AppShell({ dashboard, hiddenTiles, demoAccounts, children }: { d
     toastTimer.current = setTimeout(() => setToastState((t) => ({ ...t, show: false })), 2600);
   }, []);
 
+  // A change to the overview shows at once; the save follows and the server sends back what it kept.
+  const [overview, showOverview] = useOptimistic(savedOverview);
+  const setOverview = useCallback((layout: OverviewLayout) => {
+    startTransition(async () => {
+      showOverview(layout);
+      try {
+        await saveOverviewLayout(layout);
+      } catch {
+        toast("Couldn’t save your overview. Try again in a moment.");
+      }
+    });
+  }, [showOverview, toast]);
+
   const [messageTo, setMessageTo] = useState<string | null>(null);
   useEffect(() => {
     if (!messageTo) return;
@@ -109,8 +122,8 @@ export function AppShell({ dashboard, hiddenTiles, demoAccounts, children }: { d
   useEffect(() => { main.current?.scrollTo(0, 0); }, [pathname]);
 
   const app = useMemo<App>(
-    () => ({ dashboard, hiddenTiles, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
-    [dashboard, hiddenTiles, role, view, query, setQuery, chat, asking, ask, toast],
+    () => ({ dashboard, overview, setOverview, role, view, query, setQuery, chat, thinking: asking > 0, ask, toast, openMessage: setMessageTo }),
+    [dashboard, overview, setOverview, role, view, query, setQuery, chat, asking, ask, toast],
   );
 
   return (

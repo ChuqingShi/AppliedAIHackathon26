@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { findAccount } from "@/data/accounts";
 import { answer } from "@/lib/assistant";
 import { getDashboard } from "@/lib/dashboard";
-import { setHiddenTiles } from "@/lib/preferences";
+import type { OverviewLayout } from "@/data/types";
+import { setOverviewLayout } from "@/lib/preferences";
 import { createSession, deleteSession, requireSession } from "@/lib/session";
 
 export async function login(formData: FormData) {
@@ -26,9 +27,8 @@ export async function askAssistant(question: string) {
   return answer(dashboard.case, String(question).slice(0, 2000));
 }
 
-// Saves which overview tiles the signed-in user has removed.
-export async function saveHiddenTiles(ids: string[]) {
+// Saves which tiles the signed-in user has removed from and added to their overview.
+export async function saveOverviewLayout(layout: OverviewLayout) {
   const account = await requireSession();
-  const clean = Array.isArray(ids) ? ids.filter((id) => typeof id === "string" && /^[a-z-]{1,40}$/.test(id)) : [];
-  await setHiddenTiles(account.id, [...new Set(clean)].slice(0, 40));
+  await setOverviewLayout(account.id, layout);
 }
