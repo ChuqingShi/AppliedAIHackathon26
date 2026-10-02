@@ -219,3 +219,9 @@ __marimo__/
 
 # Claude
 .claude/
+
+# Client documents downloaded from Clio (confidential, never commit)
+data/
+
+
+.DS_Store

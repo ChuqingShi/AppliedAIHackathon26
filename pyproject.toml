@@ -1,0 +1,22 @@
+[project]
+name = "appliedaihackathon26"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "pgvector>=0.5.0",
+    "psycopg[binary]>=3.3.6",
+    "pymupdf>=1.28.2",
+    "python-dotenv>=1.2.4",
+    "requests>=2.34.2",
+    "sentence-transformers>=6.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
