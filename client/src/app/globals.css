@@ -80,24 +80,65 @@ a { color: inherit; text-decoration: none; }
 .content { padding: 20px 28px 28px; display: flex; flex-direction: column; gap: 16px; }
 .content > h2 { font-size: 19px; font-weight: 700; letter-spacing: -.01em; }
 .grid { display: grid; gap: 16px; align-items: stretch; }
-.g-tiles { grid-template-columns: var(--cols); }
 .g-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .g-ptop { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 340px; }
 .g-wide { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
-@media (max-width: 1250px) { .g-tiles, .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
+@media (max-width: 1250px) { .g-ptop, .g-wide, .g-2 { grid-template-columns: 1fr; } }
 
-/* tiles: a card plus the button at the end of its header that takes it off the overview, or (in its section) puts it on */
+/* tiles: a card plus the buttons at the end of its header that lock it in place and take it off the overview, or (in its section) put it on */
 .tile { position: relative; display: flex; flex-direction: column; min-width: 0; }
 .tile > .card { flex: 1; }
-.tile > .card > .hd { padding-right: 24px; }
-.tile-x { position: absolute; top: 17px; right: 12px; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
-.tile-x:hover { background: var(--plane); color: var(--ink); }
-.tile-x .ic { width: 13px; height: 13px; stroke-width: 2.5; vertical-align: 0; }
+.tile > .card > .hd { padding-right: 50px; }
+.tile-x, .tile-lock { position: absolute; top: 17px; right: 12px; width: 22px; height: 22px; border-radius: 6px; color: var(--muted); display: grid; place-items: center; }
+.tile-lock { right: 38px; }
+.tile-x:hover, .tile-lock:hover { background: var(--plane); color: var(--ink); }
+.tile-lock.on, .tile-lock.on:hover { background: var(--acc-soft); color: var(--acc); }
+.tile-x .ic, .tile-lock .ic { width: 13px; height: 13px; stroke-width: 2.5; vertical-align: 0; }
 .tile.sec > .card > .hd { padding-right: 142px; }
 .tile-add, .tile-on { position: absolute; top: 16px; right: 19px; height: 24px; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; white-space: nowrap; }
 .tile-add { padding: 0 10px 0 8px; border: 1px solid var(--axis); border-radius: 999px; background: var(--surface); color: var(--ink2); }
 .tile-add:hover { border-color: var(--acc); color: var(--acc); }
 .tile-on { color: var(--muted); }
+/* the Auto-arrange button above the overview's tiles */
+.tiles-bar { display: none; justify-content: flex-end; margin: -6px 0; }
+/* the overview's rows. Tiles are dragged between them; the bar shows where the one being dragged will land */
+.tiles { display: flex; flex-direction: column; gap: 16px; }
+/* a row: its tiles side by side, wrapping when they don't fit. --s, --m and --l are the widths a tile can be
+   set to (a third, a half, two thirds of the row, a hair under so three thirds never wrap); a tile with no
+   set size shares what the others leave, and is never narrower than a small one */
+.g-tiles { position: relative; display: flex; flex-wrap: wrap; gap: 16px; --s: calc((100% - 32px) / 3 - .1px); --m: calc((100% - 16px) / 2 - .1px); --l: calc((100% - 32px) / 3 * 2 + 15.9px); }
+.g-tiles > .tile { flex: 1 1 100%; }
+/* the grip in the gap to a tile's right: pull it to resize. It stays lit on a tile whose size is set */
+.tile-size { position: absolute; top: 0; bottom: 0; right: -13px; width: 10px; display: none; place-items: center; cursor: ew-resize; touch-action: none; outline: 0; }
+.tile-size::before { content: ""; width: 4px; height: 36px; border-radius: 2px; background: var(--axis); opacity: 0; transition: opacity .12s; }
+.tile:hover > .tile-size::before { opacity: 1; }
+.tile-size.set::before { background: var(--acc); opacity: .55; }
+.tile-size:hover::before, .tile-size:focus-visible::before, .tile-size.on::before { background: var(--acc); opacity: 1; }
+.tile-size-tag { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); z-index: 2; background: var(--ink); color: #fff; font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 999px; white-space: nowrap; pointer-events: none; }
+@media (min-width: 1251px) {
+  .g-tiles > .tile { flex: var(--grow) 1 0; min-width: var(--s); }
+  .g-tiles > .tile.size-s { flex: 0 0 var(--s); }
+  .g-tiles > .tile.size-m { flex: 0 0 var(--m); }
+  .g-tiles > .tile.size-l { flex: 0 0 var(--l); }
+  .g-tiles > .tile.size-full { flex: 0 0 100%; }
+  .tile-size { display: grid; }
+  .tiles-bar { display: flex; }
+}
+.tile[draggable="true"] { cursor: grab; }
+.tile.dragging { opacity: .4; }
+.tile.drop-before::before, .tile.drop-after::before, .g-tiles.drop-above::before, .g-tiles.drop-below::before { content: ""; position: absolute; z-index: 1; border-radius: 2px; background: var(--acc); pointer-events: none; }
+.tile.drop-before::before, .tile.drop-after::before { top: 0; bottom: 0; width: 4px; }
+.tile.drop-before::before { left: -10px; }
+.tile.drop-after::before { right: -10px; }
+.g-tiles.drop-above::before, .g-tiles.drop-below::before { left: 0; right: 0; height: 4px; }
+.g-tiles.drop-above::before { top: -10px; }
+.g-tiles.drop-below::before { bottom: -10px; }
+/* one column: beside becomes above and below */
+@media (max-width: 1250px) {
+  .tile.drop-before::before, .tile.drop-after::before { left: 0; right: 0; top: auto; bottom: auto; width: auto; height: 4px; }
+  .tile.drop-before::before { top: -10px; }
+  .tile.drop-after::before { bottom: -10px; }
+}
 /* stays in view at the bottom of the page while there are removed tiles to bring back */
 .restore { position: sticky; bottom: 16px; z-index: 2; align-self: flex-end; display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--ink2); background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 6px 14px 6px 6px; box-shadow: 0 4px 14px rgba(11, 11, 11, .08); }
 

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 
 const ICONS = {
   lock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
+  unlock: <><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 7.6-1.7" /></>,
   eye: <><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" /></>,
   check: <polyline points="5 12.5 10 17.5 19 7" />,
   bang: <><line x1="12" y1="5" x2="12" y2="14" /><line x1="12" y1="19" x2="12" y2="19.5" /></>,

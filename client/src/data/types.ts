@@ -96,9 +96,15 @@ export interface ClientCase extends CaseFrame {
 
 export interface User { id: string; name: string; initials: string; title: string }
 
+// The widths a user can set a tile to: a third, a half or two thirds of its row.
+export type TileSize = "s" | "m" | "l";
+
 // What a user has changed on their overview, as tile ids: the tiles they took
-// off (in that order) and the ones they added from other sections.
-export interface OverviewLayout { removed: string[]; added: string[] }
+// off (in that order), the ones they added from other sections, once they have
+// dragged tiles around, which row each one sits in (`rows`; empty until then),
+// the size of each tile they resized (`sizes`; the rest fit around those), and
+// the tiles they locked in place (`locked`; Auto-arrange leaves those alone).
+export interface OverviewLayout { removed: string[]; added: string[]; rows: string[][]; sizes: Record<string, TileSize>; locked: string[] }
 
 // One dashboard, three roles: the signed-in user's role decides which record
 // the server builds, and so what the browser receives.

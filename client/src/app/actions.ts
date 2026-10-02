@@ -29,7 +29,7 @@ export async function askAssistant(question: string) {
   return answer(dashboard.case, String(question).slice(0, 2000));
 }
 
-// Saves which tiles the signed-in user has removed from and added to their overview.
+// Saves which tiles the signed-in user has removed from and added to their overview, and how they arranged, sized and locked them.
 export async function saveOverviewLayout(layout: OverviewLayout) {
   const account = await requireSession();
   await setOverviewLayout(account.id, layout);

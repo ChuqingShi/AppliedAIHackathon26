@@ -16,12 +16,12 @@ import { CardBill, CardPatient, CardProgress, CardProviderUpdates, CardRecords, 
 // default; the rest are added from their section. A new tile is one entry here
 // plus a <SectionTile> wherever it should be offered.
 const T = {
-  financials: { id: "financials", title: "Case financials", row: 0, card: <CardFinancials /> },
-  client: { id: "client", title: "Client", row: 0, width: "320px", card: <CardClient /> },
+  financials: { id: "financials", title: "Case financials", row: 0, size: "l", card: <CardFinancials /> },
+  client: { id: "client", title: "Client", row: 0, card: <CardClient /> },
   tasks: { id: "tasks", title: "Needed on this case", row: 1, card: <CardTasks limit={4} /> },
   documents: { id: "documents", title: "Important documents", row: 1, card: <CardDocs /> },
   updates: { id: "updates", title: "Latest updates", row: 1, card: <CardUpdates limit={3} /> },
-  providerBills: { id: "provider-bills", title: "Medical bills by provider", width: "minmax(0, 1.35fr)", card: <CardProviderBills /> },
+  providerBills: { id: "provider-bills", title: "Medical bills by provider", size: "m", card: <CardProviderBills /> },
   breakdown: { id: "breakdown", title: "Settlement breakdown", card: <CardBreakdown /> },
   caseFacts: { id: "case-facts", title: "Case details", card: <CardCaseFacts /> },
 } satisfies Record<string, Tile>;
