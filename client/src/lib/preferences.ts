@@ -1,13 +1,26 @@
-// What each user has changed about their own dashboard. Demo storage: a cookie
-// per account. When the backend has a database, keep these there instead (not
-// in Clio, which is read-only).
+// What each user has changed about their own dashboard. It is kept under their
+// account in the Sapini backend's database (not in Clio, which is read-only),
+// so it is the same on every computer they sign in on.
 
 import "server-only";
-import { cookies } from "next/headers";
+import { API } from "@/data/case";
 import type { OverviewLayout, TileSize } from "@/data/types";
 
-const YEAR = 60 * 60 * 24 * 365;
-const overviewCookie = (accountId: string) => `caseboard_overview_${accountId}`;
+// Reads the account's saved overview from the backend, or with `save` replaces it.
+async function overviewRequest(accountId: string, save?: OverviewLayout): Promise<unknown> {
+  const path = `/users/${encodeURIComponent(accountId)}/overview`;
+  let res: Response;
+  try {
+    res = await fetch(`${API}${path}`, save
+      ? { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(save) }
+      : { cache: "no-store" });
+  } catch {
+    throw new Error(`The Sapini backend isn't answering at ${API}. Start it with: uvicorn main:app --port 8000`);
+  }
+  // Not a reason to show the default overview: the next change would then be saved over the user's own.
+  if (!res.ok) throw new Error(`The backend returned ${res.status} for ${path}. If it has been running since before it kept overview layouts, restart it.`);
+  return res.json();
+}
 
 const TILE_ID = /^[a-z-]{1,40}$/;
 
@@ -43,21 +56,11 @@ function cleanLayout(value: unknown): OverviewLayout {
 }
 
 // The tiles this user has taken off and put on their overview, and how they arranged, sized and locked them.
+// A user who has never changed theirs gets the default overview.
 export async function getOverviewLayout(accountId: string): Promise<OverviewLayout> {
-  const value = (await cookies()).get(overviewCookie(accountId))?.value;
-  try {
-    return cleanLayout(value ? JSON.parse(value) : null);
-  } catch {
-    return cleanLayout(null);
-  }
+  return cleanLayout(await overviewRequest(accountId));
 }
 
 export async function setOverviewLayout(accountId: string, layout: unknown) {
-  (await cookies()).set(overviewCookie(accountId), JSON.stringify(cleanLayout(layout)), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    maxAge: YEAR,
-    path: "/",
-  });
+  await overviewRequest(accountId, cleanLayout(layout));
 }

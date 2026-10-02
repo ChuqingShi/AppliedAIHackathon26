@@ -17,6 +17,7 @@ One dashboard, three kinds of user: the law firm, a medical provider, and the cl
 - `src/app/(dashboard)/` — everything behind the login. `layout.tsx` loads the signed-in user's record and renders the shell; `[view]/page.tsx` is every screen, at `/<view>` (e.g. `/overview`, `/financials`). A view that isn't in the user's role is a 404.
 - `src/app/actions.ts` — server actions: sign in, sign out, ask the assistant.
 - `src/lib/session.ts` — the session cookie. `src/lib/dashboard.ts` — `getDashboard()`, the one place data comes from: it returns only the record the signed-in role may see. It gets the case from the backend.
+- `src/lib/preferences.ts` — how each user arranged their overview (tiles added, removed, moved, resized, locked). Saved under their account in the backend, so it is the same on every computer they sign in on.
 - `src/lib/assistant.ts` — keyword answers for "Ask about this case" (firm only), built from the loaded case; replace with a model call.
 - `src/data/types.ts` — the shapes of each role's record. `src/data/case.ts` — `loadCase()`, which fetches the case from the backend, and `forProvider()` / `forClient()`, which build the trimmed records. `src/data/nav.ts` — the roles and their views. Adding a view means one entry there and one in `src/components/views.tsx`.
 - `src/components/AppShell.tsx` — sidebar, sticky case header, search, message dialog, toasts. Cards read their data with `useFirmCase()` / `useProviderCase()`.

@@ -1,5 +1,6 @@
 "use server";
 
+import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 import { findAccount } from "@/data/accounts";
 import { answer } from "@/lib/assistant";
@@ -33,6 +34,8 @@ export async function askAssistant(question: string) {
 export async function saveOverviewLayout(layout: OverviewLayout) {
   const account = await requireSession();
   await setOverviewLayout(account.id, layout);
+  // Send the saved layout back with the reply, so the shell goes on showing it once the save is done.
+  refresh();
 }
 
 // Saves the client's changes to their own personal details and returns what is

@@ -6,10 +6,12 @@ Run:  uvicorn main:app --host 127.0.0.1 --port 8000
 Then: open http://127.0.0.1:8000/login   (use 127.0.0.1, not localhost)
 (--reload works too, but on Windows it can hang and leave the port taken.)
 """
+import json
 import os
 import secrets
+from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, RedirectResponse
 
 import case_view
@@ -104,3 +106,32 @@ def provider_case(matter_id: int | None = None, provider_id: str | None = None):
         return case_view.for_provider(case_view.build_case(matter_id), provider_id)
     except LookupError as e:
         raise HTTPException(404, str(e))
+
+
+# ---- What each dashboard user saves about their own view (SQLite only, never Clio) ----
+
+# Far more than a real layout needs: a few dozen tile ids.
+MAX_LAYOUT_BYTES = 20_000
+
+
+@app.get("/users/{user_id}/overview")
+def overview_layout(user_id: str):
+    """How this user arranged their overview, or null if they never changed it."""
+    with connect() as conn:
+        row = conn.execute("SELECT layout FROM overview_layouts WHERE user_id=?", (user_id,)).fetchone()
+    return json.loads(row["layout"]) if row else None
+
+
+@app.put("/users/{user_id}/overview")
+def save_overview_layout(user_id: str, layout: dict = Body(...)):
+    """Replace this user's overview layout. The dashboard decides what a valid layout is; this only stores it."""
+    data = json.dumps(layout)
+    if len(data) > MAX_LAYOUT_BYTES:
+        raise HTTPException(413, "That layout is too large to save")
+    with connect() as conn:
+        conn.execute(
+            """INSERT INTO overview_layouts(user_id, layout, updated_at) VALUES (?,?,?)
+               ON CONFLICT(user_id) DO UPDATE SET layout=excluded.layout, updated_at=excluded.updated_at""",
+            (user_id, data, datetime.now(timezone.utc).isoformat()),
+        )
+    return layout

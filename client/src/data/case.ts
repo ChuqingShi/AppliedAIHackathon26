@@ -11,7 +11,7 @@ import "server-only";
 import { cache } from "react";
 import type { Case, ClientCase, ProviderCase } from "./types";
 
-const API = process.env.SAPINI_API_URL ?? "http://127.0.0.1:8000";
+export const API = process.env.SAPINI_API_URL ?? "http://127.0.0.1:8000";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 // The backend sends the client's date of birth ready to display ("Mar 3, 1992").

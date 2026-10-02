@@ -51,6 +51,14 @@ CREATE TABLE IF NOT EXISTS sync_runs (
     finished_at TEXT,
     counts TEXT
 );
+
+-- How each dashboard user arranged their own overview. Kept here rather than in
+-- the browser so it follows them to whatever computer they sign in on.
+CREATE TABLE IF NOT EXISTS overview_layouts (
+    user_id TEXT PRIMARY KEY,       -- the dashboard account (client/src/data/accounts.ts)
+    layout TEXT NOT NULL,           -- JSON as the dashboard sent it
+    updated_at TEXT NOT NULL
+);
 """
 
 
