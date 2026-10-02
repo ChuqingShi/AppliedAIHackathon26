@@ -226,6 +226,7 @@ Everything outside Clio lives in two gitignored places: `sapini.db` and `files/`
 | Cards are blank or hidden | Clio doesn't hold that field for this matter (e.g. no structured offer/demand). The card hides itself rather than invent a value |
 | The assistant answers tersely without citations | No `ANTHROPIC_API_KEY`, or the API can't be reached, so keyword rules are answering. Set the key in `client/.env.local` and restart `npm run dev` |
 | `npm run dev` complains about the Node version | Next.js 16 needs Node 20.9+ |
+| `tsc` fails with `Type '"/api/..."' does not satisfy the constraint 'AppRouteHandlerRoutes'` | The route types Next generates into `client/.next/types/` are stale or missing (a fresh clone, or a route added since the dev server last ran). Run `npx next typegen` in `client/`; `npm run dev` and `npm run build` regenerate them too. Nothing is wrong with the route |
 | `next dev` created `AGENTS.md`/`CLAUDE.md` inside `client/` | Expected when an AI coding agent runs it; they're gitignored. Delete them, don't commit them. The real ones live at the repo root |
 
 ---
